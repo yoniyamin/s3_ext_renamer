@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Preview Files - S3 Extension Rename</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>Files to be Renamed</h2>
+            <p>Review the files below before confirming the operation</p>
+        </div>
+        
+        <div class="content">
+            {% if files %}
+                <div class="info-box">
+                    <strong>Found {{ files|length }} file(s)</strong> matching your criteria. 
+                    <br>Scanning mode: <strong>{{ 'Recursive (includes subfolders)' if recursive else 'Non-recursive (current folder only)' }}</strong>
+                    <br>Please review the list below and confirm if you want to proceed.
+                </div>
+                
+                <div class="file-selection-controls">
+                    <button type="button" id="selectAllBtn" class="btn-small">Select All</button>
+                    <button type="button" id="deselectAllBtn" class="btn-small">Deselect All</button>
+                    <span id="selectionCount">{{ files|length }} of {{ files|length }} files selected</span>
+                </div>
+                
+                <div class="file-list">
+                    <form id="fileSelectionForm">
+                        {% for file in files %}
+                            <div class="file-item">
+                                <input type="checkbox" id="file_{{ loop.index0 }}" 
+                                       name="selected_files" value="{{ file }}" checked>
+                                <label for="file_{{ loop.index0 }}">{{ file }}</label>
+                            </div>
+                        {% endfor %}
+                    </form>
+                </div>
+                
+                <form method="POST" action="/confirm" id="confirmForm">
+                    <input type="hidden" name="selected_files_data" id="selectedFilesData" value="">
+                    <button type="submit" class="btn btn-confirm" id="confirmBtn">
+                        Confirm and Rename Selected Files
+                    </button>
+                </form>
+                
+                <form method="GET" action="/" style="margin-top: 10px;">
+                    <button type="submit" class="btn" style="background: #6c757d;">
+                        Go Back and Modify
+                    </button>
+                </form>
+            {% else %}
+                <div class="error-message">
+                    <strong>No files found</strong> matching your criteria. Please go back and check your settings.
+                </div>
+                
+                <form method="GET" action="/">
+                    <button type="submit" class="btn">
+                        Go Back
+                    </button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+    
+    <script>
+        {% if files %}
+        // File selection functionality
+        const checkboxes = document.querySelectorAll('input[name="selected_files"]');
+        const selectAllBtn = document.getElementById('selectAllBtn');
+        const deselectAllBtn = document.getElementById('deselectAllBtn');
+        const selectionCount = document.getElementById('selectionCount');
+        const confirmBtn = document.getElementById('confirmBtn');
+        
+        function updateSelectionCount() {
+            const checked = document.querySelectorAll('input[name="selected_files"]:checked').length;
+            const total = checkboxes.length;
+            selectionCount.textContent = checked + ' of ' + total + ' files selected';
+            
+            // Update button text and state
+            if (checked === 0) {
+                confirmBtn.textContent = 'No Files Selected';
+                confirmBtn.disabled = true;
+            } else {
+                confirmBtn.textContent = 'Confirm and Rename ' + checked + ' Selected Files';
+                confirmBtn.disabled = false;
+            }
+        }
+        
+        // Add event listeners to all checkboxes
+        checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', updateSelectionCount);
+        });
+        
+        // Select all button
+        selectAllBtn.addEventListener('click', function() {
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            updateSelectionCount();
+        });
+        
+        // Deselect all button
+        deselectAllBtn.addEventListener('click', function() {
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            updateSelectionCount();
+        });
+        
+        // Form submission
+        document.getElementById('confirmForm').addEventListener('submit', function(e) {
+            const selectedFiles = Array.from(document.querySelectorAll('input[name="selected_files"]:checked')).map(cb => cb.value);
+            
+            if (selectedFiles.length === 0) {
+                alert('Please select at least one file to process.');
+                e.preventDefault();
+                return;
+            }
+            
+            const confirmed = confirm('Are you sure you want to rename ' + selectedFiles.length + ' file(s)? This action cannot be undone easily.');
+            if (confirmed) {
+                // Add selected files to the form as hidden inputs
+                selectedFiles.forEach(file => {
+                    const hiddenInput = document.createElement('input');
+                    hiddenInput.type = 'hidden';
+                    hiddenInput.name = 'selected_files';
+                    hiddenInput.value = file;
+                    this.appendChild(hiddenInput);
+                });
+                
+                const btn = document.getElementById('confirmBtn');
+                btn.innerHTML = '<span class="loading"></span>Processing...';
+                btn.disabled = true;
+            } else {
+                e.preventDefault();
+            }
+        });
+        
+        // Initial count update
+        updateSelectionCount();
+        {% endif %}
+    </script>
+</body>
+</html>

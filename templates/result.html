@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Processing Results - S3 Extension Rename</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>Processing Results</h2>
+            <p>File processing {{ 'completed' if success else 'failed' }}</p>
+        </div>
+        
+        <div class="content">
+            {% if success %}
+                <div class="success-message">
+                    <h3>✓ Success!</h3>
+                    <p>{{ message }}</p>
+                    
+                    {% if success_count > 0 %}
+                        <p><strong>Files processed successfully:</strong> {{ success_count }}</p>
+                    {% endif %}
+                    
+                    {% if error_count > 0 %}
+                        <p><strong>Files with errors:</strong> {{ error_count }}</p>
+                    {% endif %}
+                </div>
+                
+                {% if errors %}
+                    <div class="error-details">
+                        <h4>Error Details:</h4>
+                        <ul>
+                            {% for error in errors %}
+                                <li>{{ error }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+            {% else %}
+                <div class="error-message">
+                    <h3>✗ Error</h3>
+                    <p>{{ message }}</p>
+                </div>
+            {% endif %}
+            
+            <div class="result-actions">
+                <form method="GET" action="/" style="display: inline;">
+                    <button type="submit" class="btn">
+                        Process More Files
+                    </button>
+                </form>
+                
+                {% if success %}
+                    <button type="button" class="btn" id="terminateBtn"
+                            style="background: #dc3545; margin-left: 10px;">
+                        Terminate App
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Terminate app functionality
+        const terminateBtn = document.getElementById('terminateBtn');
+        if (terminateBtn) {
+            terminateBtn.addEventListener('click', function() {
+                const confirmed = confirm('Are you sure you want to terminate the application? This will shut down the Flask server.');
+                if (confirmed) {
+                    // Show loading state
+                    this.innerHTML = '<span class="loading"></span>Terminating...';
+                    this.disabled = true;
+                    
+                    // Call shutdown endpoint
+                    fetch('/shutdown', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Show success message
+                            document.querySelector('.content').innerHTML = 
+                                '<div class="success-message">' +
+                                '<h3>✓ Application Terminated</h3>' +
+                                '<p>The Flask application has been shut down successfully.</p>' +
+                                '<p>You can close this browser tab.</p>' +
+                                '</div>';
+                        } else {
+                            alert('Error terminating app: ' + data.message);
+                            // Reset button
+                            this.innerHTML = 'Terminate App';
+                            this.disabled = false;
+                        }
+                    })
+                    .catch(error => {
+                        // This is expected as the server will shut down
+                        document.querySelector('.content').innerHTML = 
+                            '<div class="success-message">' +
+                            '<h3>✓ Application Terminated</h3>' +
+                            '<p>The Flask application has been shut down successfully.</p>' +
+                            '<p>You can close this browser tab.</p>' +
+                            '</div>';
+                    });
+                }
+            });
+        }
+    </script>
+</body>
+</html> 

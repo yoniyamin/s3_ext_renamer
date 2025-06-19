@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S3 Bucket Extension Rename Tool</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>S3 Bucket Extension Rename Tool</h1>
+            <p>Safely rename file extensions in your S3 bucket</p>
+        </div>
+        
+        <div class="content">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="error-message">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <div class="info-box">
+                <strong>Important:</strong> This tool will preview changes before applying them. 
+                Make sure you have proper backup of your data before proceeding.
+            </div>
+            
+            <form method="POST" id="mainForm">
+                <div class="form-group">
+                    <label for="access_key">AWS Access Key:</label>
+                    <input type="text" id="access_key" name="access_key" required 
+                           placeholder="Enter your AWS Access Key">
+                </div>
+                
+                <div class="form-group">
+                    <label for="secret_key">AWS Secret Key:</label>
+                    <input type="password" id="secret_key" name="secret_key" required 
+                           placeholder="Enter your AWS Secret Key">
+                </div>
+                
+                <div class="form-group">
+                    <label for="bucket">S3 Bucket Name:</label>
+                    <input type="text" id="bucket" name="bucket" required 
+                           placeholder="my-bucket-name">
+                </div>
+                
+                <div class="test-connection-section">
+                    <button type="button" class="btn" id="testConnectionBtn" 
+                            style="background: #17a2b8; margin-bottom: 20px;">
+                        Test Connection
+                    </button>
+                    <div id="connectionStatus" class="connection-status"></div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="prefix">Root Folder (Prefix):</label>
+                    <div class="input-with-button">
+                        <input type="text" id="prefix" name="prefix" 
+                               placeholder="folder/subfolder/ (optional)">
+                        <button type="button" id="browseBtn" class="btn-small">
+                            Browse
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Folder browser modal -->
+                <div id="folderBrowser" class="modal" style="display: none;">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>Browse S3 Bucket</h3>
+                            <span class="close" id="closeBrowser">&times;</span>
+                        </div>
+                        <div class="modal-body">
+                            <div id="currentPath">Current path: <strong>/</strong></div>
+                            <div id="browserContent">
+                                <div class="browser-loading">Click Browse to load folder contents...</div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" id="selectFolder" class="btn">Select This Folder</button>
+                            <button type="button" id="cancelBrowser" class="btn" style="background: #6c757d;">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="old_ext">Current Extension:</label>
+                    <input type="text" id="old_ext" name="old_ext" required 
+                           placeholder=".txt" value=".">
+                </div>
+                
+                <div class="form-group">
+                    <label for="new_ext">New Extension:</label>
+                    <input type="text" id="new_ext" name="new_ext" required 
+                           placeholder=".bak" value=".">
+                </div>
+                
+                <div class="checkbox-group">
+                    <input type="checkbox" id="keep_original" name="keep_original">
+                    <label for="keep_original">Keep original files (creates copies instead of renaming)</label>
+                </div>
+                
+                <div class="checkbox-group">
+                    <input type="checkbox" id="recursive" name="recursive" checked>
+                    <label for="recursive">Scan subfolders recursively (uncheck to scan only the specified folder level)</label>
+                </div>
+                
+                <button type="submit" class="btn" id="submitBtn">
+                    Preview Changes
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        // Test connection functionality
+        document.getElementById('testConnectionBtn').addEventListener('click', function() {
+            const btn = document.getElementById('testConnectionBtn');
+            const statusDiv = document.getElementById('connectionStatus');
+            
+            // Get form values
+            const accessKey = document.getElementById('access_key').value;
+            const secretKey = document.getElementById('secret_key').value;
+            const bucket = document.getElementById('bucket').value;
+            
+            // Validate required fields
+            if (!accessKey || !secretKey || !bucket) {
+                statusDiv.innerHTML = '<div class="error-message">Please fill in Access Key, Secret Key, and Bucket Name first.</div>';
+                return;
+            }
+            
+            // Show loading state
+            btn.innerHTML = '<span class="loading"></span>Testing...';
+            btn.disabled = true;
+            statusDiv.innerHTML = '';
+            
+            // Make AJAX request
+            fetch('/test-connection', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    access_key: accessKey,
+                    secret_key: secretKey,
+                    bucket: bucket
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    statusDiv.innerHTML = '<div class="success-message" style="margin: 10px 0; padding: 10px;">' + data.message + '</div>';
+                } else {
+                    statusDiv.innerHTML = '<div class="error-message" style="margin: 10px 0;">' + data.message + '</div>';
+                }
+            })
+            .catch(error => {
+                statusDiv.innerHTML = '<div class="error-message" style="margin: 10px 0;">Connection test failed: ' + error.message + '</div>';
+            })
+            .finally(() => {
+                // Reset button
+                btn.innerHTML = 'Test Connection';
+                btn.disabled = false;
+            });
+        });
+        
+        // Browse button functionality
+        let currentPrefix = '';
+        
+        document.getElementById('browseBtn').addEventListener('click', function() {
+            const accessKey = document.getElementById('access_key').value;
+            const secretKey = document.getElementById('secret_key').value;
+            const bucket = document.getElementById('bucket').value;
+            
+            if (!accessKey || !secretKey || !bucket) {
+                alert('Please fill in Access Key, Secret Key, and Bucket Name first.');
+                return;
+            }
+            
+            currentPrefix = document.getElementById('prefix').value || '';
+            loadFolders(currentPrefix);
+            document.getElementById('folderBrowser').style.display = 'block';
+        });
+        
+        // Modal close handlers
+        document.getElementById('closeBrowser').addEventListener('click', function() {
+            document.getElementById('folderBrowser').style.display = 'none';
+        });
+        
+        document.getElementById('cancelBrowser').addEventListener('click', function() {
+            document.getElementById('folderBrowser').style.display = 'none';
+        });
+        
+        document.getElementById('selectFolder').addEventListener('click', function() {
+            document.getElementById('prefix').value = currentPrefix;
+            document.getElementById('folderBrowser').style.display = 'none';
+        });
+        
+        // Load folders function
+        function loadFolders(prefix) {
+            const accessKey = document.getElementById('access_key').value;
+            const secretKey = document.getElementById('secret_key').value;
+            const bucket = document.getElementById('bucket').value;
+            
+            const contentDiv = document.getElementById('browserContent');
+            const pathDiv = document.getElementById('currentPath');
+            
+            contentDiv.innerHTML = '<div class="browser-loading">Loading...</div>';
+            pathDiv.innerHTML = 'Current path: <strong>/' + prefix + '</strong>';
+            
+            fetch('/browse-folders', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    access_key: accessKey,
+                    secret_key: secretKey,
+                    bucket: bucket,
+                    prefix: prefix
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    let html = '';
+                    
+                    // Add parent folder option if not at root
+                    if (prefix) {
+                        const parentPrefix = prefix.substring(0, prefix.lastIndexOf('/', prefix.length - 2) + 1);
+                        html += '<div class="browser-item folder" onclick="navigateToFolder(\'' + parentPrefix + '\')">';
+                        html += '<strong>.. (Parent Folder)</strong>';
+                        html += '</div>';
+                    }
+                    
+                    // Add folders
+                    data.folders.forEach(folder => {
+                        html += '<div class="browser-item folder" onclick="navigateToFolder(\'' + folder.full_path + '\')">';
+                        html += folder.name;
+                        html += '</div>';
+                    });
+                    
+                    // Add files (for reference)
+                    data.files.forEach(file => {
+                        html += '<div class="browser-item file">';
+                        html += file.name + ' <small>(' + formatFileSize(file.size) + ')</small>';
+                        html += '</div>';
+                    });
+                    
+                    if (html === '') {
+                        html = '<div class="browser-loading">No folders or files found</div>';
+                    }
+                    
+                    contentDiv.innerHTML = html;
+                } else {
+                    contentDiv.innerHTML = '<div class="error-message">' + data.message + '</div>';
+                }
+            })
+            .catch(error => {
+                contentDiv.innerHTML = '<div class="error-message">Error loading folders: ' + error.message + '</div>';
+            });
+        }
+        
+        function navigateToFolder(prefix) {
+            currentPrefix = prefix;
+            loadFolders(prefix);
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        // Form submission
+        document.getElementById('mainForm').addEventListener('submit', function() {
+            const btn = document.getElementById('submitBtn');
+            btn.innerHTML = '<span class="loading"></span>Loading...';
+            btn.disabled = true;
+        });
+    </script>
+</body>
+</html>
