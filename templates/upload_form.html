@@ -257,7 +257,7 @@
         const filePicker = document.getElementById('filePicker');
         const fileList = document.getElementById('fileList');
         const summary = document.getElementById('summary');
-        const keyPrefixInput = document.getElementById('keyPrefixInput');
+        const keyPrefixInput = document.getElementById('keyPrefixInput'); // May be null in generated forms
         
         // Utility functions
         function escapeHtml(s) { 
@@ -337,7 +337,8 @@
         
         // Upload a single file using presigned POST
         async function uploadFilePOST(file, relativePath) {
-            const prefix = keyPrefixInput.value || '';
+            const prefix = (keyPrefixInput && keyPrefixInput.value) || 
+                          (document.getElementById('keyPrefix') && document.getElementById('keyPrefix').value) || '';
             const key = (prefix + relativePath).replace(/^\/+/, ''); // Remove leading slashes
             
             // Validate file
@@ -538,7 +539,8 @@
         
         // Handle file upload process
         async function handleFileList(pairs) {
-            const prefix = keyPrefixInput.value || '';
+            const prefix = (keyPrefixInput && keyPrefixInput.value) || 
+                          (document.getElementById('keyPrefix') && document.getElementById('keyPrefix').value) || '';
             
             // Initialize upload session metadata
             uploadResults = {

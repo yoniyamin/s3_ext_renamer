@@ -512,6 +512,21 @@ body {
     margin-left: 10px;
     width: auto;
     margin-top: 0;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+/* Ensure modal footer buttons stay on same line */
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+}
+
+.modal-footer .btn {
+    margin-left: 0;
+    flex-shrink: 0;
 }
 
 /* Browser content styling */
@@ -2089,6 +2104,41 @@ textarea:focus {
     background: white;
     color: #6c757d;
     transform: none;
+}
+
+/* Shutdown Button */
+.btn-shutdown {
+    background: linear-gradient(135deg, #dc3545, #c82333);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.2);
+}
+
+.btn-shutdown:hover {
+    background: linear-gradient(135deg, #c82333, #a71e2a);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(220, 53, 69, 0.3);
+}
+
+.btn-shutdown:active {
+    transform: translateY(0);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.2);
+}
+
+/* Download Progress Spinner */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.spinner {
+    display: inline-block;
 }
 
 /* Upload Verification Styles */

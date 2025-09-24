@@ -48,8 +48,8 @@
                     <h1>S3 Wizard</h1>
                     <p>Generate presigned URLs and manage S3 operations</p>
                 </div>
-                <button type="button" class="btn-minimal" id="mainExitBtn" style="margin-top: -20px;">
-                    🚪 Exit Application
+                <button type="button" class="btn-shutdown" id="mainExitBtn" style="margin-top: -20px;">
+                    🔴 Shutdown
                 </button>
             </div>
         </div>
@@ -460,9 +460,6 @@
                             </div>
                         </div>
                         <div style="display: flex; align-items: center; gap: 15px;">
-                            <button type="button" class="btn-minimal" id="exitApplicationBtn">
-                                🚪 Exit
-                            </button>
                             <button type="button" class="btn-minimal" id="refreshBrowser">
                                 🔄 Refresh
                             </button>
@@ -493,6 +490,19 @@
                     <!-- File Browser Content -->
                     <div class="file-browser-content-regular" id="fileBrowserList" style="flex: 1; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; background: white;">
                         <div class="browser-loading">Select a bucket to browse files...</div>
+                    </div>
+                    
+                    <!-- Download Progress -->
+                    <div id="downloadProgress" style="display: none; margin-top: 10px; padding: 15px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #28a745;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div class="spinner" style="width: 20px; height: 20px; border: 2px solid #e3f2fd; border-top: 2px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                            <span id="downloadStatus">Preparing download...</span>
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <div style="background: #e9ecef; border-radius: 4px; height: 6px; overflow: hidden;">
+                                <div id="downloadProgressBar" style="background: linear-gradient(90deg, #28a745, #20c997); height: 100%; width: 0%; transition: width 0.3s ease;"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2508,35 +2518,98 @@
         }
 
         // File Browser Functions
-        function copyCredentialsToFileBrowserForm() {
+        async function copyCredentialsToFileBrowserForm() {
             const accessKey = document.getElementById('wizard-access-key').value;
             const secretKey = document.getElementById('wizard-secret-key').value;
             const sessionToken = document.getElementById('wizard-session-token').value;
             const region = document.getElementById('wizard-region').value;
             
-            // Store credentials for file browser operations
-            window.fileBrowserCredentials = {
-                access_key: accessKey,
-                secret_key: secretKey,
-                session_token: sessionToken,
-                region: region
-            };
+            console.log('🔐 Starting authentication with:', { accessKey: accessKey?.substring(0,8) + '...', region });
             
-            // Load buckets for Select2 dropdown
-            loadBucketsForSelect2();
+            // Validate credentials are provided
+            if (!accessKey || !secretKey) {
+                alert('Please enter your AWS credentials before proceeding.');
+                return;
+            }
+            
+            try {
+                // Authenticate and get secure session
+                console.log('📡 Sending authentication request...');
+                const response = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        access_key: accessKey,
+                        secret_key: secretKey,
+                        session_token: sessionToken,
+                        region: region
+                    })
+                });
+                
+                console.log('📡 Authentication response status:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('❌ Authentication failed with status:', response.status, errorText);
+                    throw new Error(`Authentication failed: ${response.status} - ${errorText}`);
+                }
+                
+                const data = await response.json();
+                console.log('📄 Authentication response data:', data);
+                
+                if (data.success) {
+                    // Store ONLY the session ID (no credentials!)
+                    window.sessionId = data.session_id;
+                    
+                    console.log('✅ Secure session created:', data.session_id?.substring(0,8) + '...', data.user_info);
+                    
+                    // Load buckets for Select2 dropdown
+                    await loadBucketsForSelect2();
+                } else {
+                    console.error('❌ Authentication unsuccessful:', data);
+                    alert('Authentication failed: ' + (data.message || 'Unknown error'));
+                    throw new Error(data.message || 'Authentication failed');
+                }
+            } catch (error) {
+                console.error('💥 Authentication error:', error);
+                alert('Failed to authenticate: ' + error.message);
+                // Don't proceed to load buckets if authentication failed
+            }
         }
         
         async function loadBucketsForSelect2() {
+            console.log('🪣 Loading buckets with session:', window.sessionId?.substring(0,8) + '...');
+            
+            if (!window.sessionId) {
+                console.error('❌ No session ID available for loading buckets');
+                alert('Authentication session not found. Please try again.');
+                return;
+            }
+            
             try {
+                console.log('📡 Sending list-buckets request...');
                 const response = await fetch('/list-buckets', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify(window.fileBrowserCredentials)
+                    body: JSON.stringify({
+                        session_id: window.sessionId
+                    })
                 });
                 
+                console.log('📡 List-buckets response status:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('❌ List-buckets failed with status:', response.status, errorText);
+                    throw new Error(`Request failed: ${response.status} - ${errorText}`);
+                }
+                
                 const data = await response.json();
+                console.log('📄 List-buckets response data:', data);
                 
                 if (data.success) {
                     // Get last used buckets from localStorage
@@ -2576,10 +2649,12 @@
                         });
                     }
                 } else {
-                    console.error('Failed to load buckets:', data.message);
+                    console.error('❌ Failed to load buckets:', data.message);
+                    alert('Failed to load buckets: ' + (data.message || 'Unknown error'));
                 }
             } catch (error) {
-                console.error('Error loading buckets:', error);
+                console.error('💥 Error loading buckets:', error);
+                alert('Error loading buckets: ' + error.message);
             }
         }
         
@@ -2651,7 +2726,7 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        ...window.fileBrowserCredentials,
+                        session_id: window.sessionId,
                         bucket: bucket,
                         prefix: prefix
                     })
@@ -2911,28 +2986,25 @@
                 loadFileBrowserContents(window.currentFileBrowserBucket, window.currentFileBrowserPrefix);
             });
             
-            // Exit application from file browser
-            document.getElementById('exitApplicationBtn').addEventListener('click', async function() {
-                if (confirm('Are you sure you want to exit the application?')) {
-                    try {
-                        await fetch('/exit', { method: 'POST' });
-                        window.close();
-                    } catch (error) {
-                        console.error('Error exiting application:', error);
-                        alert('Could not exit application. You may close this window manually.');
-                    }
-                }
-            });
             
             // Exit application from main page
             document.getElementById('mainExitBtn').addEventListener('click', async function() {
-                if (confirm('Are you sure you want to exit the application?')) {
+                if (confirm('Are you sure you want to shutdown the application?')) {
                     try {
-                        await fetch('/exit', { method: 'POST' });
+                        // Logout first to clean up session
+                        if (window.sessionId) {
+                            await fetch('/auth/logout', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ session_id: window.sessionId })
+                            });
+                        }
+                        
+                        await fetch('/shutdown', { method: 'POST' });
                         window.close();
                     } catch (error) {
-                        console.error('Error exiting application:', error);
-                        alert('Could not exit application. You may close this window manually.');
+                        console.error('Error shutting down application:', error);
+                        alert('Could not shutdown application. You may close this window manually.');
                     }
                 }
             });
@@ -3070,42 +3142,26 @@
                 const currentPrefix = window.currentFileBrowserPrefix || '';
                 const folderKey = currentPrefix + folderName + '/';
                 
-                // Use presigned URL approach to create the folder
-                const response = await fetch('/generate-presigned-url', {
+                const response = await fetch('/s3-create-folder', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        ...window.fileBrowserCredentials,
+                        session_id: window.sessionId,
                         bucket: window.currentFileBrowserBucket,
-                        object_key: folderKey,
-                        url_type: 'upload',
-                        expiration: 300  // 5 minutes should be enough
+                        folder_key: folderKey
                     })
                 });
                 
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Create empty object using PUT URL
-                    const putResponse = await fetch(data.put_url, {
-                        method: 'PUT',
-                        body: '', // Empty content for folder
-                        headers: {
-                            'Content-Length': '0'
-                        }
-                    });
-                    
-                    if (putResponse.ok) {
-                        // Refresh the browser to show the new folder
-                        loadFileBrowserContents(window.currentFileBrowserBucket, window.currentFileBrowserPrefix);
-                        alert(`Folder "${folderName}" created successfully!`);
-                    } else {
-                        throw new Error(`Failed to create folder: HTTP ${putResponse.status}`);
-                    }
+                    // Refresh the browser to show the new folder
+                    await loadFileBrowserContents(window.currentFileBrowserBucket, window.currentFileBrowserPrefix);
+                    alert(`Folder "${folderName}" created successfully!`);
                 } else {
-                    throw new Error(data.message || 'Failed to generate upload URL');
+                    throw new Error(data.message || 'Failed to create folder');
                 }
             } catch (error) {
                 console.error('Error creating folder:', error);
@@ -3136,22 +3192,34 @@
             
             for (const item of items) {
                 try {
-                    const response = await fetch('/s3-delete-object', {
+                    const isFolder = item.endsWith('/');
+                    const endpoint = isFolder ? '/s3-delete-folder' : '/s3-delete-object';
+                    const requestBody = {
+                        session_id: window.sessionId,
+                        bucket: window.currentFileBrowserBucket
+                    };
+                    
+                    if (isFolder) {
+                        requestBody.prefix = item;
+                    } else {
+                        requestBody.key = item;
+                    }
+                    
+                    const response = await fetch(endpoint, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                         },
-                        body: JSON.stringify({
-                            ...window.fileBrowserCredentials,
-                            bucket: window.currentFileBrowserBucket,
-                            key: item
-                        })
+                        body: JSON.stringify(requestBody)
                     });
                     
                     const data = await response.json();
                     
                     if (data.success) {
                         successCount++;
+                        if (isFolder && data.deleted_count) {
+                            console.log(`Deleted folder '${item}' containing ${data.deleted_count} objects`);
+                        }
                     } else {
                         errorCount++;
                         console.error(`Failed to delete ${item}:`, data.message);
@@ -3178,32 +3246,80 @@
         }
         
         async function downloadSelectedItems(items) {
-            // Filter out folders (keys ending with '/')
-            const files = items.filter(item => !item.endsWith('/'));
+            // Show progress
+            showDownloadProgress('Analyzing selection...', 10);
+            
+            const files = [];
+            const folders = [];
+            
+            // Separate files and folders
+            items.forEach(item => {
+                if (item.endsWith('/')) {
+                    folders.push(item);
+                } else {
+                    files.push(item);
+                }
+            });
+            
+            // If there are folders, we need to get all files in those folders
+            if (folders.length > 0) {
+                updateDownloadProgress('Scanning folders...', 30);
+                
+                for (const folder of folders) {
+                    try {
+                        const response = await fetch('/browse-folders', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                session_id: window.sessionId,
+                                bucket: window.currentFileBrowserBucket,
+                                prefix: folder
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success && data.files) {
+                            // Add all files from this folder to the files list
+                            data.files.forEach(fileObj => {
+                                files.push(fileObj.key);
+                            });
+                        }
+                    } catch (error) {
+                        console.error(`Error getting files from folder ${folder}:`, error);
+                    }
+                }
+            }
             
             if (files.length === 0) {
-                alert('No files selected for download. Folders cannot be downloaded directly.');
+                hideDownloadProgress();
+                alert('No files found to download.');
                 return;
             }
             
-            if (files.length === 1) {
-                // Single file download without zip
+            updateDownloadProgress(`Preparing ${files.length} file${files.length > 1 ? 's' : ''} for download...`, 50);
+            
+            if (files.length === 1 && folders.length === 0) {
+                // Single file download without zip (only if no folders were selected)
                 await downloadSingleFile(files[0]);
             } else {
-                // Multiple files - always use zip
+                // Multiple files or folder download - always use zip
                 await downloadAsZip(files);
             }
         }
         
         async function downloadSingleFile(key) {
             try {
+                updateDownloadProgress('Generating download URL...', 70);
+                
                 const response = await fetch('/generate-presigned-url', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        ...window.fileBrowserCredentials,
+                        session_id: window.sessionId,
                         bucket: window.currentFileBrowserBucket,
                         object_key: key,
                         url_type: 'download',
@@ -3214,12 +3330,19 @@
                 const data = await response.json();
                 
                 if (data.success) {
+                    updateDownloadProgress('Starting download...', 90);
+                    
                     // Open download URL in new tab
                     window.open(data.download_url, '_blank');
+                    
+                    updateDownloadProgress('Download started!', 100);
+                    setTimeout(() => hideDownloadProgress(), 2000);
                 } else {
+                    hideDownloadProgress();
                     throw new Error(data.message || 'Failed to generate download URL');
                 }
             } catch (error) {
+                hideDownloadProgress();
                 console.error('Error downloading file:', error);
                 alert('Error downloading file: ' + error.message);
             }
@@ -3227,19 +3350,23 @@
         
         async function downloadAsZip(items) {
             try {
+                updateDownloadProgress('Creating ZIP archive...', 75);
+                
                 const response = await fetch('/s3-download-zip', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        ...window.fileBrowserCredentials,
+                        session_id: window.sessionId,
                         bucket: window.currentFileBrowserBucket,
                         keys: items
                     })
                 });
                 
                 if (response.ok) {
+                    updateDownloadProgress('Processing ZIP file...', 85);
+                    
                     // Create blob and download
                     const blob = await response.blob();
                     const url = window.URL.createObjectURL(blob);
@@ -3250,16 +3377,44 @@
                     a.click();
                     document.body.removeChild(a);
                     window.URL.revokeObjectURL(url);
+                    
+                    updateDownloadProgress('ZIP download started!', 100);
+                    setTimeout(() => hideDownloadProgress(), 2000);
                 } else {
+                    hideDownloadProgress();
                     const errorData = await response.json();
                     throw new Error(errorData.message || 'Failed to download files as zip');
                 }
             } catch (error) {
+                hideDownloadProgress();
                 console.error('Error downloading as zip:', error);
                 alert('Error downloading as zip: ' + error.message);
             }
         }
         
+        // Download progress control functions
+        function showDownloadProgress(message, percentage) {
+            const progressDiv = document.getElementById('downloadProgress');
+            const statusSpan = document.getElementById('downloadStatus');
+            const progressBar = document.getElementById('downloadProgressBar');
+            
+            progressDiv.style.display = 'block';
+            statusSpan.textContent = message;
+            progressBar.style.width = percentage + '%';
+        }
+        
+        function updateDownloadProgress(message, percentage) {
+            const statusSpan = document.getElementById('downloadStatus');
+            const progressBar = document.getElementById('downloadProgressBar');
+            
+            statusSpan.textContent = message;
+            progressBar.style.width = percentage + '%';
+        }
+        
+        function hideDownloadProgress() {
+            const progressDiv = document.getElementById('downloadProgress');
+            progressDiv.style.display = 'none';
+        }
         
         async function verifyUploadFromJson() {
             if (!window.uploadJsonFile) return;
@@ -3289,7 +3444,7 @@
                                 'Content-Type': 'application/json',
                             },
                             body: JSON.stringify({
-                                ...window.fileBrowserCredentials,
+                                session_id: window.sessionId,
                                 bucket: window.currentVerificationBucket,
                                 key: fileInfo.s3_key
                             })
@@ -3327,7 +3482,7 @@
                                         'Content-Type': 'application/json',
                                     },
                                     body: JSON.stringify({
-                                        ...window.fileBrowserCredentials,
+                                        session_id: window.sessionId,
                                         bucket: window.currentVerificationBucket,
                                         filename: filename,
                                         expected_size: fileInfo.file_size_bytes

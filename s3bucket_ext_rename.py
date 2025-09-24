@@ -18,6 +18,8 @@ from urllib.parse import urlparse, parse_qs
 import re
 import zipfile
 import io
+import secrets
+import hashlib
 from flask import Response
 
 LOCK_FILE = "app.lock"
@@ -28,12 +30,7 @@ def remove_lock_file():
         os.remove(LOCK_FILE)
         logging.info("Lock file removed.")
 
-def show_popup(title, message):
-    """Display a popup message using tkinter."""
-    root = tk.Tk()
-    root.withdraw()  # Hide the main window
-    messagebox.showinfo(title, message)
-    root.destroy()
+
 
 def is_port_in_use(port):
     """Check if a local port is in use."""
@@ -81,6 +78,64 @@ static_folder = os.path.join(base_path, 'static')
 app = Flask(__name__, template_folder=template_folder, static_folder=static_folder)
 app.secret_key = 'your-secret-key-here'  # Required for flash messages
 preview_files = []
+
+# Secure session store for AWS credentials
+# In production, use Redis or a proper database
+session_store = {}
+
+class SecureSession:
+    def __init__(self):
+        self.sessions = {}
+        self.session_timeout = 3600  # 1 hour timeout
+
+    def create_session(self, credentials):
+        """Create a secure session with AWS credentials"""
+        session_id = secrets.token_urlsafe(32)
+        session_data = {
+            'credentials': credentials,
+            'created_at': datetime.now(),
+            'last_accessed': datetime.now()
+        }
+        self.sessions[session_id] = session_data
+        logging.info(f"Created secure session: {session_id[:8]}...")
+        return session_id
+
+    def get_credentials(self, session_id):
+        """Get AWS credentials for a session"""
+        if not session_id or session_id not in self.sessions:
+            return None
+        
+        session_data = self.sessions[session_id]
+        
+        # Check if session has expired
+        if (datetime.now() - session_data['last_accessed']).seconds > self.session_timeout:
+            self.invalidate_session(session_id)
+            return None
+        
+        # Update last accessed time
+        session_data['last_accessed'] = datetime.now()
+        return session_data['credentials']
+
+    def invalidate_session(self, session_id):
+        """Remove a session"""
+        if session_id in self.sessions:
+            del self.sessions[session_id]
+            logging.info(f"Invalidated session: {session_id[:8]}...")
+
+    def cleanup_expired_sessions(self):
+        """Remove expired sessions"""
+        current_time = datetime.now()
+        expired_sessions = []
+        
+        for session_id, session_data in self.sessions.items():
+            if (current_time - session_data['last_accessed']).seconds > self.session_timeout:
+                expired_sessions.append(session_id)
+        
+        for session_id in expired_sessions:
+            self.invalidate_session(session_id)
+
+# Global session manager
+session_manager = SecureSession()
 
 def shutdown_server():
     """Shutdown the Flask server gracefully"""
@@ -133,30 +188,32 @@ def list_matching_files(s3, bucket, prefix, old_ext, recursive=True):
 
 @app.route("/browse-folders", methods=["POST"])
 def browse_folders():
-    """Browse folders/prefixes in S3 bucket"""
+    """Browse folders/prefixes in S3 bucket using secure session"""
     try:
         data = request.get_json()
-        access_key = data.get("access_key")
-        secret_key = data.get("secret_key")
-        session_token = data.get("session_token")
-        region = data.get("region", "us-east-1")
         bucket = data.get("bucket")
         current_prefix = data.get("prefix", "")
 
         logging.info(f"Browsing folders for bucket '{bucket}' with prefix '{current_prefix}'")
 
-        if not access_key or not secret_key or not bucket:
-            logging.warning("Missing required credentials for browsing folders.")
-            return jsonify({"success": False, "message": "Missing required credentials"})
+        # Get credentials from secure session
+        credentials = get_session_credentials(data)
+        if not credentials:
+            logging.warning("Invalid or missing session for browsing folders")
+            return jsonify({"success": False, "message": "Invalid or expired session"}), 401
 
-        # Create S3 session and client
+        if not bucket:
+            logging.warning("Missing bucket parameter for browsing folders")
+            return jsonify({"success": False, "message": "Missing bucket parameter"})
+
+        # Create S3 session and client using stored credentials
         session_kwargs = {
-            "aws_access_key_id": access_key,
-            "aws_secret_access_key": secret_key,
-            "region_name": region
+            "aws_access_key_id": credentials["access_key"],
+            "aws_secret_access_key": credentials["secret_key"],
+            "region_name": credentials["region"]
         }
-        if session_token:
-            session_kwargs["aws_session_token"] = session_token
+        if credentials.get("session_token"):
+            session_kwargs["aws_session_token"] = credentials["session_token"]
 
         session = boto3.Session(**session_kwargs)
         s3 = session.client("s3")
@@ -327,13 +384,9 @@ def multi_upload():
 
 @app.route("/generate-presigned-url", methods=["POST"])
 def generate_presigned_url():
-    """Generate pre-signed URL for S3 upload"""
+    """Generate pre-signed URL for S3 upload using secure session"""
     try:
         data = request.get_json()
-        access_key = data.get("access_key")
-        secret_key = data.get("secret_key")
-        session_token = data.get("session_token")
-        region = data.get("region", "us-east-1")
         bucket = data.get("bucket")
         object_key = data.get("object_key")
         url_type = data.get("url_type", "upload")  # Default to upload
@@ -345,10 +398,11 @@ def generate_presigned_url():
 
         logging.info(f"Generating presigned URL for bucket '{bucket}', key '{object_key}'")
 
-        # For download URLs, object_key is required. For upload URLs, it can be empty (root folder)
-        if not access_key or not secret_key:
-            logging.warning("Missing required credentials for presigned URL generation")
-            return jsonify({"success": False, "message": "Missing required credentials (access_key, secret_key)"})
+        # Get credentials from secure session
+        credentials = get_session_credentials(data)
+        if not credentials:
+            logging.warning("Invalid or missing session for presigned URL generation")
+            return jsonify({"success": False, "message": "Invalid or expired session"}), 401
         
         if url_type == "download" and not object_key:
             logging.warning("Missing object_key for download URL")
@@ -358,14 +412,14 @@ def generate_presigned_url():
         if object_key is None:
             object_key = ""
 
-        # Create S3 session and client
+        # Create S3 session and client using stored credentials
         session_kwargs = {
-            "aws_access_key_id": access_key,
-            "aws_secret_access_key": secret_key,
-            "region_name": region
+            "aws_access_key_id": credentials["access_key"],
+            "aws_secret_access_key": credentials["secret_key"],
+            "region_name": credentials["region"]
         }
-        if session_token:
-            session_kwargs["aws_session_token"] = session_token
+        if credentials.get("session_token"):
+            session_kwargs["aws_session_token"] = credentials["session_token"]
 
         session = boto3.Session(**session_kwargs)
         s3 = session.client(
@@ -867,28 +921,25 @@ def parse_presigned_url():
 
 @app.route("/list-buckets", methods=["POST"])
 def list_buckets():
-    """List available S3 buckets"""
+    """List available S3 buckets using secure session"""
     try:
         data = request.get_json()
-        access_key = data.get("access_key")
-        secret_key = data.get("secret_key")
-        session_token = data.get("session_token")
-        region = data.get("region", "us-east-1")
-
         logging.info("Listing S3 buckets")
 
-        if not access_key or not secret_key:
-            logging.warning("Missing required credentials for listing buckets")
-            return jsonify({"success": False, "message": "Missing required credentials"})
+        # Get credentials from secure session
+        credentials = get_session_credentials(data)
+        if not credentials:
+            logging.warning("Invalid or missing session for listing buckets")
+            return jsonify({"success": False, "message": "Invalid or expired session"}), 401
 
-        # Create S3 session and client
+        # Create S3 session and client using stored credentials
         session_kwargs = {
-            "aws_access_key_id": access_key,
-            "aws_secret_access_key": secret_key,
-            "region_name": region
+            "aws_access_key_id": credentials["access_key"],
+            "aws_secret_access_key": credentials["secret_key"],
+            "region_name": credentials["region"]
         }
-        if session_token:
-            session_kwargs["aws_session_token"] = session_token
+        if credentials.get("session_token"):
+            session_kwargs["aws_session_token"] = credentials["session_token"]
 
         session = boto3.Session(**session_kwargs)
         s3 = session.client("s3")
@@ -921,27 +972,29 @@ def s3_delete_object():
     """Delete an S3 object"""
     try:
         data = request.get_json()
-        access_key = data.get("access_key")
-        secret_key = data.get("secret_key")
-        session_token = data.get("session_token")
-        region = data.get("region", "us-east-1")
         bucket = data.get("bucket")
         key = data.get("key")
 
         logging.info(f"Deleting object '{key}' from bucket '{bucket}'")
 
-        if not access_key or not secret_key or not bucket or not key:
+        # Get credentials from secure session
+        credentials = get_session_credentials(data)
+        if not credentials:
+            logging.warning("Invalid or missing session for object deletion")
+            return jsonify({"success": False, "message": "Invalid or expired session"}), 401
+
+        if not bucket or not key:
             logging.warning("Missing required parameters for object deletion")
             return jsonify({"success": False, "message": "Missing required parameters"})
 
-        # Create S3 session and client
+        # Create S3 session and client using stored credentials
         session_kwargs = {
-            "aws_access_key_id": access_key,
-            "aws_secret_access_key": secret_key,
-            "region_name": region
+            "aws_access_key_id": credentials["access_key"],
+            "aws_secret_access_key": credentials["secret_key"],
+            "region_name": credentials["region"]
         }
-        if session_token:
-            session_kwargs["aws_session_token"] = session_token
+        if credentials.get("session_token"):
+            session_kwargs["aws_session_token"] = credentials["session_token"]
 
         session = boto3.Session(**session_kwargs)
         s3 = session.client("s3")
@@ -962,32 +1015,175 @@ def s3_delete_object():
         logging.error(f"An unexpected error occurred deleting object: {e}")
         return jsonify({"success": False, "message": f"Error: {str(e)}"})
 
+@app.route("/s3-delete-folder", methods=["POST"])
+def s3_delete_folder():
+    """Delete all objects with a given prefix (folder)"""
+    try:
+        data = request.get_json()
+        bucket = data.get("bucket")
+        prefix = data.get("prefix")
+
+        logging.info(f"Deleting folder with prefix '{prefix}' from bucket '{bucket}'")
+
+        # Get credentials from secure session
+        credentials = get_session_credentials(data)
+        if not credentials:
+            logging.warning("Invalid or missing session for folder deletion")
+            return jsonify({"success": False, "message": "Invalid or expired session"}), 401
+
+        if not bucket or not prefix:
+            logging.warning("Missing required parameters for folder deletion")
+            return jsonify({"success": False, "message": "Missing required parameters"})
+
+        session_kwargs = {
+            "aws_access_key_id": credentials["access_key"],
+            "aws_secret_access_key": credentials["secret_key"],
+            "region_name": credentials["region"]
+        }
+        if credentials.get("session_token"):
+            session_kwargs["aws_session_token"] = credentials["session_token"]
+
+        session = boto3.Session(**session_kwargs)
+        s3 = session.client("s3")
+
+        # List all objects with the given prefix
+        paginator = s3.get_paginator("list_objects_v2")
+        objects_to_delete = []
+        
+        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+            if "Contents" in page:
+                for obj in page["Contents"]:
+                    objects_to_delete.append({"Key": obj["Key"]})
+
+        if not objects_to_delete:
+            logging.info(f"No objects found with prefix '{prefix}'")
+            return jsonify({
+                "success": True,
+                "message": f"No objects found with prefix {prefix}",
+                "deleted_count": 0
+            })
+
+        # Delete objects in batches (S3 allows up to 1000 objects per batch)
+        deleted_count = 0
+        for i in range(0, len(objects_to_delete), 1000):
+            batch = objects_to_delete[i:i+1000]
+            
+            response = s3.delete_objects(
+                Bucket=bucket,
+                Delete={
+                    'Objects': batch,
+                    'Quiet': False
+                }
+            )
+            
+            # Count successful deletions
+            if 'Deleted' in response:
+                deleted_count += len(response['Deleted'])
+            
+            # Log any errors
+            if 'Errors' in response:
+                for error in response['Errors']:
+                    logging.error(f"Error deleting {error['Key']}: {error['Message']}")
+
+        logging.info(f"Successfully deleted {deleted_count} objects with prefix '{prefix}' from bucket '{bucket}'")
+        return jsonify({
+            "success": True,
+            "message": f"Successfully deleted {deleted_count} objects",
+            "deleted_count": deleted_count
+        })
+
+    except ClientError as e:
+        logging.error(f"ClientError deleting folder: {e}")
+        return jsonify({"success": False, "message": f"AWS Error: {str(e)}"})
+    except Exception as e:
+        logging.error(f"An unexpected error occurred deleting folder: {e}")
+        return jsonify({"success": False, "message": f"Error: {str(e)}"})
+
+@app.route("/s3-create-folder", methods=["POST"])
+def s3_create_folder():
+    """Create a folder (empty object with trailing slash) in S3"""
+    try:
+        data = request.get_json()
+        bucket = data.get("bucket")
+        folder_key = data.get("folder_key")
+
+        logging.info(f"Creating folder '{folder_key}' in bucket '{bucket}'")
+
+        # Get credentials from secure session
+        credentials = get_session_credentials(data)
+        if not credentials:
+            logging.warning("Invalid or missing session for folder creation")
+            return jsonify({"success": False, "message": "Invalid or expired session"}), 401
+
+        if not bucket or not folder_key:
+            logging.warning("Missing required parameters for folder creation")
+            return jsonify({"success": False, "message": "Missing required parameters"})
+
+        # Ensure folder key ends with slash
+        if not folder_key.endswith('/'):
+            folder_key += '/'
+
+        session_kwargs = {
+            "aws_access_key_id": credentials["access_key"],
+            "aws_secret_access_key": credentials["secret_key"],
+            "region_name": credentials["region"]
+        }
+        if credentials.get("session_token"):
+            session_kwargs["aws_session_token"] = credentials["session_token"]
+
+        session = boto3.Session(**session_kwargs)
+        s3 = session.client("s3")
+
+        # Create empty object with trailing slash to represent folder
+        s3.put_object(
+            Bucket=bucket,
+            Key=folder_key,
+            Body=b'',
+            ContentLength=0
+        )
+        
+        logging.info(f"Successfully created folder '{folder_key}' in bucket '{bucket}'")
+        return jsonify({
+            "success": True,
+            "message": f"Successfully created folder {folder_key}",
+            "folder_key": folder_key
+        })
+
+    except ClientError as e:
+        logging.error(f"ClientError creating folder: {e}")
+        return jsonify({"success": False, "message": f"AWS Error: {str(e)}"})
+    except Exception as e:
+        logging.error(f"An unexpected error occurred creating folder: {e}")
+        return jsonify({"success": False, "message": f"Error: {str(e)}"})
+
 @app.route("/s3-download-zip", methods=["POST"])
 def s3_download_zip():
     """Download multiple S3 objects as a ZIP file"""
     try:
         data = request.get_json()
-        access_key = data.get("access_key")
-        secret_key = data.get("secret_key")
-        session_token = data.get("session_token")
-        region = data.get("region", "us-east-1")
         bucket = data.get("bucket")
         keys = data.get("keys", [])
 
         logging.info(f"Creating ZIP download for {len(keys)} objects from bucket '{bucket}'")
 
-        if not access_key or not secret_key or not bucket or not keys:
+        # Get credentials from secure session
+        credentials = get_session_credentials(data)
+        if not credentials:
+            logging.warning("Invalid or missing session for ZIP download")
+            return jsonify({"success": False, "message": "Invalid or expired session"}), 401
+
+        if not bucket or not keys:
             logging.warning("Missing required parameters for ZIP download")
             return jsonify({"success": False, "message": "Missing required parameters"}), 400
 
-        # Create S3 session and client
+        # Create S3 session and client using stored credentials
         session_kwargs = {
-            "aws_access_key_id": access_key,
-            "aws_secret_access_key": secret_key,
-            "region_name": region
+            "aws_access_key_id": credentials["access_key"],
+            "aws_secret_access_key": credentials["secret_key"],
+            "region_name": credentials["region"]
         }
-        if session_token:
-            session_kwargs["aws_session_token"] = session_token
+        if credentials.get("session_token"):
+            session_kwargs["aws_session_token"] = credentials["session_token"]
 
         session = boto3.Session(**session_kwargs)
         s3 = session.client("s3")
@@ -997,6 +1193,11 @@ def s3_download_zip():
         
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
             for key in keys:
+                # Skip None or empty keys
+                if not key:
+                    logging.warning(f"Skipping invalid key: {key}")
+                    continue
+                    
                 try:
                     # Download object from S3
                     response = s3.get_object(Bucket=bucket, Key=key)
@@ -1017,11 +1218,13 @@ def s3_download_zip():
                     logging.error(f"Error downloading object '{key}': {e}")
                     # Add error file to ZIP to inform user
                     error_content = f"Error downloading {key}: {str(e)}"
-                    zip_file.writestr(f"ERROR_{key.replace('/', '_')}.txt", error_content)
+                    safe_key = str(key).replace('/', '_') if key else 'unknown'
+                    zip_file.writestr(f"ERROR_{safe_key}.txt", error_content)
                 except Exception as e:
                     logging.error(f"Unexpected error downloading object '{key}': {e}")
                     error_content = f"Unexpected error downloading {key}: {str(e)}"
-                    zip_file.writestr(f"ERROR_{key.replace('/', '_')}.txt", error_content)
+                    safe_key = str(key).replace('/', '_') if key else 'unknown'
+                    zip_file.writestr(f"ERROR_{safe_key}.txt", error_content)
 
         zip_buffer.seek(0)
         
@@ -1053,27 +1256,29 @@ def s3_check_file():
     """Check if S3 file exists and get its size"""
     try:
         data = request.get_json()
-        access_key = data.get("access_key")
-        secret_key = data.get("secret_key")
-        session_token = data.get("session_token")
-        region = data.get("region", "us-east-1")
         bucket = data.get("bucket")
         key = data.get("key")
 
         logging.info(f"Checking file '{key}' in bucket '{bucket}'")
 
-        if not access_key or not secret_key or not bucket or not key:
+        # Get credentials from secure session
+        credentials = get_session_credentials(data)
+        if not credentials:
+            logging.warning("Invalid or missing session for file check")
+            return jsonify({"success": False, "message": "Invalid or expired session"}), 401
+
+        if not bucket or not key:
             logging.warning("Missing required parameters for file check")
             return jsonify({"success": False, "message": "Missing required parameters"})
 
-        # Create S3 session and client
+        # Create S3 session and client using stored credentials
         session_kwargs = {
-            "aws_access_key_id": access_key,
-            "aws_secret_access_key": secret_key,
-            "region_name": region
+            "aws_access_key_id": credentials["access_key"],
+            "aws_secret_access_key": credentials["secret_key"],
+            "region_name": credentials["region"]
         }
-        if session_token:
-            session_kwargs["aws_session_token"] = session_token
+        if credentials.get("session_token"):
+            session_kwargs["aws_session_token"] = credentials["session_token"]
 
         session = boto3.Session(**session_kwargs)
         s3 = session.client("s3")
@@ -1112,27 +1317,29 @@ def s3_search_file():
     """Search for files with same name and size in bucket"""
     try:
         data = request.get_json()
-        access_key = data.get("access_key")
-        secret_key = data.get("secret_key")
-        session_token = data.get("session_token")
-        region = data.get("region", "us-east-1")
         bucket = data.get("bucket")
         filename = data.get("filename")
         expected_size = data.get("expected_size")
 
         logging.info(f"Searching for file '{filename}' with size {expected_size} in bucket '{bucket}'")
 
-        if not access_key or not secret_key or not bucket or not filename:
+        # Get credentials from secure session
+        credentials = get_session_credentials(data)
+        if not credentials:
+            logging.warning("Invalid or missing session for file search")
+            return jsonify({"success": False, "message": "Invalid or expired session"}), 401
+
+        if not bucket or not filename:
             return jsonify({"success": False, "message": "Missing required parameters"})
 
-        # Create S3 session and client
+        # Create S3 session and client using stored credentials
         session_kwargs = {
-            "aws_access_key_id": access_key,
-            "aws_secret_access_key": secret_key,
-            "region_name": region
+            "aws_access_key_id": credentials["access_key"],
+            "aws_secret_access_key": credentials["secret_key"],
+            "region_name": credentials["region"]
         }
-        if session_token:
-            session_kwargs["aws_session_token"] = session_token
+        if credentials.get("session_token"):
+            session_kwargs["aws_session_token"] = credentials["session_token"]
 
         session = boto3.Session(**session_kwargs)
         s3 = session.client("s3")
@@ -1166,6 +1373,116 @@ def s3_search_file():
     except Exception as e:
         logging.error(f"An unexpected error occurred searching for file: {e}")
         return jsonify({"success": False, "message": f"Error: {str(e)}"})
+
+# Authentication endpoints
+@app.route("/auth/login", methods=["POST"])
+def auth_login():
+    """Authenticate user and create secure session"""
+    try:
+        data = request.get_json()
+        access_key = data.get("access_key")
+        secret_key = data.get("secret_key")
+        session_token = data.get("session_token")
+        region = data.get("region", "us-east-1")
+
+        if not access_key or not secret_key:
+            return jsonify({"success": False, "message": "Access key and secret key are required"}), 400
+
+        # Test credentials by making a simple AWS call
+        try:
+            session_kwargs = {
+                "aws_access_key_id": access_key,
+                "aws_secret_access_key": secret_key,
+                "region_name": region
+            }
+            if session_token:
+                session_kwargs["aws_session_token"] = session_token
+
+            test_session = boto3.Session(**session_kwargs)
+            sts = test_session.client("sts")
+            
+            # Verify credentials with a simple call
+            identity = sts.get_caller_identity()
+            
+            # Credentials are valid, create secure session
+            credentials = {
+                "access_key": access_key,
+                "secret_key": secret_key,
+                "session_token": session_token,
+                "region": region
+            }
+            
+            session_id = session_manager.create_session(credentials)
+            
+            logging.info(f"User authenticated successfully: {identity.get('Arn', 'Unknown')}")
+            
+            return jsonify({
+                "success": True,
+                "session_id": session_id,
+                "message": "Authentication successful",
+                "user_info": {
+                    "account": identity.get('Account'),
+                    "arn": identity.get('Arn'),
+                    "user_id": identity.get('UserId')
+                }
+            })
+
+        except ClientError as e:
+            logging.warning(f"Authentication failed: {e}")
+            return jsonify({"success": False, "message": "Invalid AWS credentials"}), 401
+
+    except Exception as e:
+        logging.error(f"Login error: {e}")
+        return jsonify({"success": False, "message": "Authentication failed"}), 500
+
+@app.route("/auth/logout", methods=["POST"])
+def auth_logout():
+    """Invalidate user session"""
+    try:
+        data = request.get_json() or {}
+        session_id = data.get("session_id") or request.headers.get("X-Session-ID")
+        
+        if session_id:
+            session_manager.invalidate_session(session_id)
+            return jsonify({"success": True, "message": "Logged out successfully"})
+        else:
+            return jsonify({"success": True, "message": "No active session"})
+
+    except Exception as e:
+        logging.error(f"Logout error: {e}")
+        return jsonify({"success": False, "message": "Logout failed"}), 500
+
+@app.route("/auth/validate", methods=["POST"])
+def auth_validate():
+    """Validate session and return user info"""
+    try:
+        data = request.get_json() or {}
+        session_id = data.get("session_id") or request.headers.get("X-Session-ID")
+        
+        if not session_id:
+            return jsonify({"success": False, "message": "No session provided"}), 401
+        
+        credentials = session_manager.get_credentials(session_id)
+        if not credentials:
+            return jsonify({"success": False, "message": "Invalid or expired session"}), 401
+        
+        return jsonify({"success": True, "message": "Session valid"})
+
+    except Exception as e:
+        logging.error(f"Session validation error: {e}")
+        return jsonify({"success": False, "message": "Validation failed"}), 500
+
+def get_session_credentials(request_data):
+    """Helper function to get credentials from session"""
+    session_id = request_data.get("session_id")
+    if not session_id:
+        return None
+    
+    credentials = session_manager.get_credentials(session_id)
+    if not credentials:
+        return None
+    
+    return credentials
 
 @app.route("/")
 def index():
