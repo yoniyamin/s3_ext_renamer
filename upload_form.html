@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>S3 Upload</title>
+<style>
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 2rem; }
+  .card { max-width: 560px; padding: 1.25rem; border: 1px solid #e5e7eb; border-radius: 12px; }
+  button { padding: .6rem 1rem; border: 0; border-radius: 8px; cursor: pointer; }
+  .primary { background: #2563eb; color: white; }
+  .muted { color:#4b5563; font-size:.9rem; }
+  .row { margin-top: .75rem; }
+  input[type=file] { margin-top: .25rem; }
+  progress { width:100%; height: 12px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h2>Upload to S3</h2>
+  <p class="muted">Files will upload securely to the provider. This link expires after 60 minutes.</p>
+
+  <form id="uploadForm" action="https://your-bucket-name.s3.amazonaws.com/" method="post" enctype="multipart/form-data" target="_blank">
+    <!-- Required hidden fields from the pre-signed policy -->
+    <input type="hidden" name="success_action_status" value="201"/><input type="hidden" name="key" value="customer123/uploads/${filename}"/><input type="hidden" name="x-amz-algorithm" value="AWS4-HMAC-SHA256"/><input type="hidden" name="x-amz-credential" value="AKIA.../20250922/eu-west-1/s3/aws4_request"/><input type="hidden" name="x-amz-date" value="20250922T160006Z"/>    <input type="hidden" name="policy" value="eyJleHBpcmF0aW9uIjogIjIwMjUtMDktMjJUMTc6MDA6MDZaIiwgImNvbmRpdGlvbnMiOiBbeyJzdWNjZXNzX2FjdGlvbl9zdGF0dXMiOiAiMjAxIn0sIFsic3RhcnRzLXdpdGgiLCAiJGtleSIsICJjdXN0b21lcjEyMy91cGxvYWRzLyJdLCBbImNvbnRlbnQtbGVuZ3RoLXJhbmdlIiwgMSwgNTI0Mjg4MDBdLCB7ImJ1Y2tldCI6ICJ5b3VyLWJ1Y2tldC1uYW1lIn0sIFsic3RhcnRzLXdpdGgiLCAiJGtleSIsICJjdXN0b21lcjEyMy91cGxvYWRzLyJdLCB7IngtYW16LWFsZ29yaXRobSI6ICJBV1M0LUhNQUMtU0hBMjU2In0sIHsieC1hbXotY3JlZGVudGlhbCI6ICJBS0lBLi4uLzIwMjUwOTIyL2V1LXdlc3QtMS9zMy9hd3M0X3JlcXVlc3QifSwgeyJ4LWFtei1kYXRlIjogIjIwMjUwOTIyVDE2MDAwNloifV19"/><input type="hidden" name="x-amz-signature" value="2ab4a04fccc313de86bffde5fd11a63faf41b035fc5073671bb81d53bb8a98f2"/>
+    <!-- 'key' field - will be dynamically updated by JavaScript for each file -->
+    <div class="row">
+      <label>Choose file</label><br/>
+      <input name="file" type="file" required />
+    </div>
+    <div class="row">
+      <button class="primary" type="submit">Upload</button>
+    </div>
+  </form>
+
+  <div class="row">
+    <details>
+      <summary>Advanced</summary>
+      <p class="muted">Uploads go straight to S3. On success S3 returns <code>201 Created</code> with XML.</p>
+      <p class="muted">Key prefix enforced: <code>customer123/uploads/</code>. Max size: 50 MB.</p>
+    </details>
+  </div>
+</div>
+
+</body>
+</html>

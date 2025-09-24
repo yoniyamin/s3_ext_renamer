@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>S3 Multi-File Upload</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; 
+            margin: 0; padding: 2rem; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 { margin: 0; font-weight: 300; }
+        .header p { margin: 10px 0 0 0; opacity: 0.9; }
+        .content { padding: 40px; }
+        
+        .info-box {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #17a2b8;
+            font-size: 14px;
+        }
+        
+        #dropzone {
+            border: 2px dashed #888;
+            border-radius: 12px;
+            padding: 3rem 2rem;
+            text-align: center;
+            transition: background 0.2s ease, border-color 0.2s ease;
+            cursor: pointer;
+            margin: 20px 0;
+            background: #f8f9fa;
+        }
+        #dropzone.drag {
+            background: #f2f8ff;
+            border-color: #3b82f6;
+        }
+        #dropzone:hover {
+            border-color: #667eea;
+            background: white;
+        }
+        
+        .upload-options {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .upload-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+        }
+        .upload-btn.secondary {
+            background: linear-gradient(135deg, #6c757d, #545b62);
+        }
+        
+        .row { margin: 15px 0; }
+        .flex { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+        .hint { color: #666; font-size: 0.9rem; }
+        .muted { color: #666; }
+        
+        .file {
+            margin: 8px 0;
+            font-size: 0.95rem;
+            padding: 8px 12px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 3px solid #667eea;
+        }
+        .file progress {
+            width: 200px;
+            height: 14px;
+            vertical-align: middle;
+            margin-left: 10px;
+        }
+        .ok { color: #15803d; font-weight: bold; }
+        .err { color: #b91c1c; font-weight: bold; }
+        .pill { 
+            background: #eef2ff; 
+            color: #3730a3; 
+            border-radius: 999px; 
+            padding: 0.15rem 0.6rem; 
+            font-size: 0.8rem; 
+            margin-left: 8px;
+        }
+        
+        #summary {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #2196f3;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        #fileList {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 S3 Multi-File Upload</h1>
+            <p>Drag & drop files or folders - <span id="timeRemaining">Calculating remaining time...</span></p>
+        </div>
+        
+        <div class="content">
+            <div class="info-box">
+                <strong>📁 Upload Location:</strong> {{ upload_location }}<br>
+                <strong>📊 Max File Size:</strong> {{ max_size_mb }} MB per file<br>
+                <strong>🔒 Security:</strong> Files upload directly to S3 with temporary access<br>
+                <strong>⏱️ Expires:</strong> <span id="expirationTime">{{ expiration_minutes }} minutes</span>
+            </div>
+            
+            <div class="config-info">
+                <h4>📋 Upload Configuration</h4>
+                <div class="controls">
+                    <div class="control-group">
+                        <label for="keyPrefix">Key Prefix (folder path in bucket):</label>
+                        <input type="text" id="keyPrefixInput" value="{{ key_prefix }}" 
+                               placeholder="e.g., uploads/2024/" />
+                        <div class="hint">Files will be uploaded to this path. Must be allowed by the presigned policy.</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="dropzone">
+                📁 Drop files or folders here, or click to choose files<br>
+                <div class="hint" style="margin-top: 10px;">
+                    Supports multiple files and preserves folder structure
+                </div>
+            </div>
+            
+            <div class="upload-options">
+                <button type="button" class="upload-btn" id="fileBtn">📄 Choose Files</button>
+                <button type="button" class="upload-btn secondary" id="folderBtn">📁 Choose Folder</button>
+            </div>
+            
+            <input type="file" id="filePicker" multiple style="display: none;" />
+            <input type="file" id="folderPicker" webkitdirectory directory multiple style="display: none;" />
+            
+            <div id="summary" class="muted"></div>
+            <div id="fileList"></div>
+            
+            <div id="exportSection" style="display: none; margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #28a745;">
+                <h4 style="margin: 0 0 10px 0; color: #155724;">📊 Export Upload Results</h4>
+                <p style="margin: 0 0 15px 0; font-size: 14px; color: #6c757d;">
+                    Download a JSON file with details of all uploaded files for verification purposes.
+                </p>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button type="button" class="upload-btn" id="exportJsonBtn">
+                        📁 Download JSON
+                    </button>
+                    <button type="button" class="upload-btn secondary" id="copyJsonBtn">
+                        📋 Copy to Clipboard
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Hidden form data from backend -->
+            <div style="display: none;" id="uploadConfig">
+                <form id="templateForm">
+                    {{ hidden_fields|safe }}
+                    <input type="hidden" name="key" value="{{ key_with_placeholder }}">
+                    <input type="hidden" id="postUrl" value="{{ post_url }}">
+                    <input type="hidden" id="maxSizeMb" value="{{ max_size_mb }}">
+                    <input type="hidden" id="keyPrefix" value="{{ key_prefix }}">
+                    <input type="hidden" id="expirationMinutes" value="{{ expiration_minutes }}">
+                    <input type="hidden" id="expiresAtIso" value="{{ expires_at_iso }}">
+            </form>
+            </div>
+            
+            <div class="details" style="margin-top: 30px;">
+                <details>
+                    <summary>ℹ️ Technical Details</summary>
+                    <div class="details-content">
+                        <p><strong>Upload Method:</strong> Direct POST to S3 (presigned)</p>
+                        <p><strong>Success Response:</strong> 201 Created with XML</p>
+                        <p><strong>Key Pattern:</strong> {{ key_pattern }}</p>
+                        <p><strong>Generated:</strong> {{ generated_time }}</p>
+                        <p><strong>Policy:</strong> Allows uploads with "starts-with" key validation</p>
+                        <p><strong>CORS:</strong> Bucket must allow POST from your origin and expose ETag header</p>
+                    </div>
+                </details>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get configuration from backend
+        const maxSizeMb = parseInt(document.getElementById('maxSizeMb').value);
+        const postUrl = document.getElementById('postUrl').value;
+        const templateForm = document.getElementById('templateForm');
+        
+        // Upload results tracking
+        let uploadResults = {
+            session: {},
+            files: []
+        };
+        
+        // DOM elements
+        const dropzone = document.getElementById('dropzone');
+        const folderPicker = document.getElementById('folderPicker');
+        const filePicker = document.getElementById('filePicker');
+        const fileList = document.getElementById('fileList');
+        const summary = document.getElementById('summary');
+        const keyPrefixInput = document.getElementById('keyPrefixInput');
+        
+        // Utility functions
+        function escapeHtml(s) { 
+            return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); 
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        function makeRow(path, size) {
+            const wrap = document.createElement('div');
+            wrap.className = 'file';
+            const prog = document.createElement('progress');
+            prog.max = size || 1; 
+            prog.value = 0;
+            wrap.innerHTML = `${escapeHtml(path)} (${formatFileSize(size)}) `;
+            wrap.appendChild(prog);
+            fileList.appendChild(wrap);
+            return { wrap, prog };
+        }
+        
+        // S3 Object Key Validation
+        function validateS3ObjectKey(filename) {
+            // Check length
+            const filenameSize = new Blob([filename]).size;
+            if (filenameSize > 1024) {
+                return {
+                    valid: false,
+                    error: `Filename too long (${filenameSize} bytes, max 1024)`
+                };
+            }
+            
+            // Check for problematic characters
+            const invalidChars = /[\x00-\x1f\x7f"'<>&|]/;
+            if (invalidChars.test(filename)) {
+                return {
+                    valid: false,
+                    error: `Contains invalid characters`
+                };
+            }
+            
+            // Check if starts with forward slash
+            if (filename.startsWith('/')) {
+                return {
+                    valid: false,
+                    error: `Cannot start with /`
+                };
+            }
+            
+            // Check directory segments
+            const segments = filename.split('/');
+            for (let segment of segments) {
+                const segmentSize = new Blob([segment]).size;
+                if (segmentSize > 255) {
+                    return {
+                        valid: false,
+                        error: `Directory segment too long`
+                    };
+                }
+            }
+            
+            // Basic sanitization
+            let sanitizedName = filename
+                .replace(/[\x00-\x1f\x7f]/g, '')
+                .replace(/["'<>&|]/g, '_');
+            
+            return {
+                valid: true,
+                sanitizedName: sanitizedName
+            };
+        }
+        
+        // Upload a single file using presigned POST
+        async function uploadFilePOST(file, relativePath) {
+            const prefix = keyPrefixInput.value || '';
+            const key = (prefix + relativePath).replace(/^\/+/, ''); // Remove leading slashes
+            
+            // Validate file
+            const validation = validateS3ObjectKey(relativePath);
+            if (!validation.valid) {
+                // Record failed validation
+                uploadResults.files.push({
+                    original_filename: file.name,
+                    sanitized_filename: null,
+                    relative_path: relativePath,
+                    file_size_bytes: file.size,
+                    file_size_formatted: formatFileSize(file.size),
+                    s3_key: null,
+                    mime_type: file.type || 'application/octet-stream',
+                    upload_status: 'validation_failed',
+                    error_message: validation.error,
+                    timestamp: new Date().toISOString()
+                });
+                throw new Error(`Invalid filename: ${validation.error}`);
+            }
+            
+            const maxSize = maxSizeMb * 1024 * 1024;
+            if (file.size > maxSize) {
+                // Record size validation failure
+                uploadResults.files.push({
+                    original_filename: file.name,
+                    sanitized_filename: validation.sanitizedName,
+                    relative_path: relativePath,
+                    file_size_bytes: file.size,
+                    file_size_formatted: formatFileSize(file.size),
+                    s3_key: key,
+                    mime_type: file.type || 'application/octet-stream',
+                    upload_status: 'size_exceeded',
+                    error_message: `File too large: ${formatFileSize(file.size)} > ${maxSizeMb}MB`,
+                    timestamp: new Date().toISOString()
+                });
+                throw new Error(`File too large: ${formatFileSize(file.size)} > ${maxSizeMb}MB`);
+            }
+            
+            const formData = new FormData();
+            
+            // Add all hidden fields from template form, except 'key'
+            const hiddenInputs = templateForm.querySelectorAll('input[type="hidden"]');
+            hiddenInputs.forEach(input => {
+                if (input.name === 'key') {
+                    // Replace placeholder with actual key
+                    const keyValue = input.value.replace('{{ filename_placeholder }}', validation.sanitizedName);
+                    formData.append('key', keyValue);
+                } else if (input.name) {
+                    formData.append(input.name, input.value);
+                }
+            });
+            
+            // Add the file
+            formData.append('file', file);
+            
+            const { prog, wrap } = makeRow(key, file.size);
+            
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', postUrl, true);
+                
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        prog.value = e.loaded;
+                    }
+                };
+                
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        prog.value = prog.max;
+                        const success = document.createElement('span');
+                        success.className = 'ok';
+                        success.textContent = ' ✓';
+                        wrap.appendChild(success);
+                        
+                        // Record successful upload
+                        uploadResults.files.push({
+                            original_filename: file.name,
+                            sanitized_filename: validation.sanitizedName,
+                            relative_path: relativePath,
+                            file_size_bytes: file.size,
+                            file_size_formatted: formatFileSize(file.size),
+                            s3_key: key,
+                            mime_type: file.type || 'application/octet-stream',
+                            upload_status: 'success',
+                            error_message: null,
+                            timestamp: new Date().toISOString(),
+                            http_status: xhr.status
+                        });
+                        
+                        resolve();
+                    } else {
+                        const error = document.createElement('span');
+                        error.className = 'err';
+                        error.textContent = ` ✗ (HTTP ${xhr.status})`;
+                        wrap.appendChild(error);
+                        
+                        // Record failed upload
+                        uploadResults.files.push({
+                            original_filename: file.name,
+                            sanitized_filename: validation.sanitizedName,
+                            relative_path: relativePath,
+                            file_size_bytes: file.size,
+                            file_size_formatted: formatFileSize(file.size),
+                            s3_key: key,
+                            mime_type: file.type || 'application/octet-stream',
+                            upload_status: 'upload_failed',
+                            error_message: xhr.responseText || `HTTP ${xhr.status}`,
+                            timestamp: new Date().toISOString(),
+                            http_status: xhr.status
+                        });
+                        
+                        reject(new Error(`HTTP ${xhr.status}: ${xhr.responseText || xhr.statusText}`));
+                    }
+                };
+                
+                xhr.onerror = () => {
+                    const error = document.createElement('span');
+                    error.className = 'err';
+                    error.textContent = ' ✗ (network)';
+                    wrap.appendChild(error);
+                    
+                    // Record network error
+                    uploadResults.files.push({
+                        original_filename: file.name,
+                        sanitized_filename: validation.sanitizedName,
+                        relative_path: relativePath,
+                        file_size_bytes: file.size,
+                        file_size_formatted: formatFileSize(file.size),
+                        s3_key: key,
+                        mime_type: file.type || 'application/octet-stream',
+                        upload_status: 'network_error',
+                        error_message: 'Network error during upload',
+                        timestamp: new Date().toISOString(),
+                        http_status: 0
+                    });
+                    
+                    reject(new Error('Network error'));
+                };
+                
+                xhr.send(formData);
+            });
+        }
+        
+        // Collect files from folder picker (webkitdirectory)
+        function filesFromInput(fileList) {
+            return [...fileList].map(f => ({ 
+                file: f, 
+                relativePath: f.webkitRelativePath || f.name 
+            }));
+        }
+        
+        // Collect files from drag & drop (entries API)
+        async function filesFromDataTransfer(dt) {
+            const items = [...(dt.items || [])];
+            const out = [];
+            
+            async function traverseEntry(entry, prefix = '') {
+                if (entry.isFile) {
+                    await new Promise((resolve, reject) => {
+                        entry.file(f => {
+                            out.push({ 
+                                file: f, 
+                                relativePath: prefix + entry.name 
+                            });
+                            resolve();
+                        }, reject);
+                    });
+                } else if (entry.isDirectory) {
+                    const reader = entry.createReader();
+                    await new Promise((resolve, reject) => {
+                        const readBatch = () => {
+                            reader.readEntries(async entries => {
+                                if (entries.length === 0) return resolve();
+                                for (const e of entries) {
+                                    await traverseEntry(e, prefix + entry.name + '/');
+                                }
+                                readBatch(); // Continue reading (directories can be batched)
+                            }, reject);
+                        };
+                        readBatch();
+                    });
+                }
+            }
+            
+            for (const item of items) {
+                const entry = item.webkitGetAsEntry && item.webkitGetAsEntry();
+                if (entry) {
+                    await traverseEntry(entry, '');
+                } else if (item.kind === 'file') {
+                    const f = item.getAsFile();
+                    if (f) out.push({ file: f, relativePath: f.name });
+                }
+            }
+            return out;
+        }
+        
+        // Handle file upload process
+        async function handleFileList(pairs) {
+            const prefix = keyPrefixInput.value || '';
+            
+            // Initialize upload session metadata
+            uploadResults = {
+                session: {
+                    timestamp: new Date().toISOString(),
+                    bucket: postUrl ? new URL(postUrl).hostname.split('.')[0] : 'unknown',
+                    base_prefix: prefix,
+                    total_files: pairs.length,
+                    upload_method: 'single_presigned_post'
+                },
+                files: []
+            };
+            
+            summary.style.display = 'block';
+            summary.textContent = `Uploading ${pairs.length} file(s) to prefix "${prefix}"...`;
+            fileList.style.display = 'block';
+            fileList.innerHTML = ''; // Clear previous files
+            
+            // Hide export section during upload
+            document.getElementById('exportSection').style.display = 'none';
+            
+            let successful = 0, failed = 0;
+            
+            for (const { file, relativePath } of pairs) {
+                try {
+                    await uploadFilePOST(file, relativePath);
+                    successful++;
+                } catch (e) {
+                    console.error(`Failed to upload ${relativePath}:`, e);
+                    failed++;
+                }
+            }
+            
+            // Update session summary
+            uploadResults.session.completed_at = new Date().toISOString();
+            uploadResults.session.successful_uploads = successful;
+            uploadResults.session.failed_uploads = failed;
+            uploadResults.session.total_size_bytes = uploadResults.files.reduce((sum, f) => sum + f.file_size_bytes, 0);
+            uploadResults.session.total_size_formatted = formatFileSize(uploadResults.session.total_size_bytes);
+            
+            summary.innerHTML = `Done: <strong>${successful}</strong> succeeded, <strong>${failed}</strong> failed.`;
+            
+            if (failed === 0) {
+                summary.style.borderLeftColor = '#28a745';
+                summary.style.background = '#d4edda';
+                summary.style.color = '#155724';
+            } else if (successful === 0) {
+                summary.style.borderLeftColor = '#dc3545';
+                summary.style.background = '#f8d7da';  
+                summary.style.color = '#721c24';
+            } else {
+                summary.style.borderLeftColor = '#ffc107';
+                summary.style.background = '#fff3cd';
+                summary.style.color = '#856404';
+            }
+            
+            // Show export section if there were any files processed
+            if (uploadResults.files.length > 0) {
+                document.getElementById('exportSection').style.display = 'block';
+            }
+        }
+        
+        // Export functions
+        function generateExportJson() {
+            const exportData = {
+                export_info: {
+                    generated_at: new Date().toISOString(),
+                    export_version: "1.0",
+                    purpose: "S3 upload verification and audit"
+                },
+                ...uploadResults
+            };
+            return JSON.stringify(exportData, null, 2);
+        }
+        
+        function downloadJson() {
+            try {
+                const jsonData = generateExportJson();
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substr(0, 19);
+                const filename = `s3-upload-results-${timestamp}.json`;
+                
+                const blob = new Blob([jsonData], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                // Update button text temporarily
+                const btn = document.getElementById('exportJsonBtn');
+                const originalText = btn.textContent;
+                btn.textContent = '✅ Downloaded';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                }, 2000);
+                
+            } catch (error) {
+                console.error('Error downloading JSON:', error);
+                alert('Error downloading JSON: ' + error.message);
+            }
+        }
+        
+        function copyJsonToClipboard() {
+            try {
+                const jsonData = generateExportJson();
+                
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(jsonData).then(() => {
+                        // Update button text temporarily
+                        const btn = document.getElementById('copyJsonBtn');
+                        const originalText = btn.textContent;
+                        btn.textContent = '✅ Copied';
+                        setTimeout(() => {
+                            btn.textContent = originalText;
+                        }, 2000);
+                    }).catch(err => {
+                        console.error('Clipboard API failed:', err);
+                        fallbackCopyToClipboard(jsonData);
+                    });
+                } else {
+                    fallbackCopyToClipboard(jsonData);
+                }
+            } catch (error) {
+                console.error('Error copying JSON:', error);
+                alert('Error copying JSON: ' + error.message);
+            }
+        }
+        
+        function fallbackCopyToClipboard(text) {
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+                // Update button text temporarily
+                const btn = document.getElementById('copyJsonBtn');
+                const originalText = btn.textContent;
+                btn.textContent = '✅ Copied';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                }, 2000);
+            } catch (err) {
+                console.error('Fallback copy failed:', err);
+                alert('Unable to copy to clipboard. Please manually copy the JSON from the console.');
+                console.log('Upload Results JSON:', text);
+            } finally {
+                document.body.removeChild(textArea);
+            }
+        }
+        
+        // UI Event Handlers
+        document.getElementById('exportJsonBtn').addEventListener('click', downloadJson);
+        document.getElementById('copyJsonBtn').addEventListener('click', copyJsonToClipboard);
+        document.getElementById('fileBtn').addEventListener('click', () => filePicker.click());
+        document.getElementById('folderBtn').addEventListener('click', () => folderPicker.click());
+        
+        dropzone.addEventListener('click', () => filePicker.click());
+        
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('drag');
+        });
+        
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('drag');
+        });
+        
+        dropzone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('drag');
+            try {
+                const pairs = await filesFromDataTransfer(e.dataTransfer);
+                if (pairs.length > 0) {
+                    handleFileList(pairs);
+                }
+            } catch (error) {
+                console.error('Error processing dropped files:', error);
+                alert('Error processing dropped files: ' + error.message);
+            }
+        });
+        
+        filePicker.addEventListener('change', (e) => {
+            const files = [...e.target.files].map(f => ({ 
+                file: f, 
+                relativePath: f.name 
+            }));
+            if (files.length > 0) {
+                handleFileList(files);
+            }
+        });
+        
+        folderPicker.addEventListener('change', (e) => {
+            const pairs = filesFromInput(e.target.files);
+            if (pairs.length > 0) {
+                handleFileList(pairs);
+            }
+        });
+        
+        // Dynamic expiration countdown
+        function startExpirationCountdown() {
+            const expiresAtIso = document.getElementById('expiresAtIso').value;
+            const timeRemainingElement = document.getElementById('timeRemaining');
+            
+            if (!expiresAtIso) {
+                // Fallback to old behavior if no expiration time provided
+                const expiresInMinutes = parseInt(document.getElementById('expirationMinutes').value);
+                const expirationTime = new Date(Date.now() + (expiresInMinutes * 60 * 1000));
+                timeRemainingElement.textContent = `expires in ~${expiresInMinutes} minutes (estimated)`;
+                return;
+            }
+            
+            const expirationTime = new Date(expiresAtIso);
+            
+            function updateCountdown() {
+                const now = new Date();
+                const timeLeft = expirationTime - now;
+                
+                if (timeLeft <= 0) {
+                    timeRemainingElement.textContent = 'EXPIRED';
+                    timeRemainingElement.style.color = '#dc3545';
+                    dropzone.style.opacity = '0.5';
+                    dropzone.style.pointerEvents = 'none';
+                    
+                    // Disable all upload functionality
+                    const fileBtn = document.getElementById('fileBtn');
+                    const folderBtn = document.getElementById('folderBtn');
+                    if (fileBtn) fileBtn.disabled = true;
+                    if (folderBtn) folderBtn.disabled = true;
+                    dropzone.style.cursor = 'not-allowed';
+                    return;
+                }
+                
+                const hours = Math.floor(timeLeft / (1000 * 60 * 60));
+                const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+                
+                let timeString = 'expires in ';
+                if (hours > 0) timeString += `${hours}h `;
+                if (minutes > 0) timeString += `${minutes}m `;
+                timeString += `${seconds}s`;
+                
+                timeRemainingElement.textContent = timeString;
+                
+                // Color coding based on time remaining
+                if (timeLeft < 300000) { // < 5 minutes
+                    timeRemainingElement.style.color = '#dc3545';
+                } else if (timeLeft < 900000) { // < 15 minutes
+                    timeRemainingElement.style.color = '#fd7e14';
+                } else {
+                    timeRemainingElement.style.color = 'inherit';
+                }
+            }
+            
+            updateCountdown();
+            setInterval(updateCountdown, 1000);
+        }
+        
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            startExpirationCountdown();
+        });
+        
+        // Keyboard shortcut for folder picker
+        document.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'f' && (e.altKey || e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                folderPicker.click();
+            }
+        });
+    </script>
+</body>
+</html>

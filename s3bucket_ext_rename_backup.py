@@ -1,4 +1,4 @@
-﻿from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 import boto3
 from botocore.config import Config
 import os
@@ -8,6 +8,8 @@ import time
 import logging
 from logging.handlers import RotatingFileHandler
 from botocore.exceptions import ClientError, NoCredentialsError
+import tkinter as tk
+from tkinter import messagebox
 import sys
 import atexit
 import socket
@@ -16,9 +18,6 @@ import webview
 from datetime import datetime, timedelta
 from urllib.parse import urlparse, parse_qs
 import re
-import zipfile
-import io
-from flask import Response
 
 LOCK_FILE = "app.lock"
 
@@ -319,12 +318,6 @@ def wizard():
     logging.info("Rendering wizard interface")
     return render_template("wizard.html")
 
-@app.route("/multi-upload")
-def multi_upload():
-    """Multi-type file upload interface"""
-    logging.info("Rendering multi-upload interface")
-    return render_template("multi_upload_form.html")
-
 @app.route("/generate-presigned-url", methods=["POST"])
 def generate_presigned_url():
     """Generate pre-signed URL for S3 upload"""
@@ -341,7 +334,6 @@ def generate_presigned_url():
         upload_html = data.get("upload_html", False)  # Upload HTML form to S3
         expiration = int(data.get("expiration", 3600))  # Default 1 hour
         content_type = data.get("content_type")
-        use_timestamp_prefix = data.get("use_timestamp_prefix", True)  # Add timestamp subfolder by default
 
         logging.info(f"Generating presigned URL for bucket '{bucket}', key '{object_key}'")
 
@@ -401,21 +393,12 @@ def generate_presigned_url():
             # Ensure key prefix ends with / for folder uploads
             if html_key_prefix and not html_key_prefix.endswith('/'):
                 html_key_prefix = html_key_prefix + '/'
-            
-            # Optionally generate timestamp-based subfolder to avoid filename conflicts
-            if use_timestamp_prefix:
-                timestamp_folder = datetime.now().strftime('%Y%m%d-%H%M%S')
-                timestamp_key_prefix = html_key_prefix + timestamp_folder + "/"
-            else:
-                timestamp_key_prefix = html_key_prefix
-            
-            # Enhanced policy for multiple file uploads:
-            # 1. Allow any filename after the prefix
+            # Generate timestamp-based subfolder to avoid filename conflicts
+            timestamp_folder = datetime.now().strftime('%Y%m%d-%H%M%S')
+            timestamp_key_prefix = html_key_prefix + timestamp_folder + "/"
+            # Add starts-with condition for key to allow any filename after the timestamp prefix
             conditions.append(["starts-with", "$key", timestamp_key_prefix])
-            # 2. Add content-length-range for individual file size limits
-            max_file_size = 5 * 1024 * 1024 * 1024  # 5GB max per file (S3 single upload limit)
-            conditions.append(["content-length-range", 1, max_file_size])
-            # 3. Set a template key that will be replaced in the HTML form
+            # Set a template key that will be replaced in the HTML form
             object_key = timestamp_key_prefix + "${filename}"
 
         # Generate presigned URLs based on type
@@ -508,9 +491,8 @@ def generate_presigned_url():
                         html_content = generate_upload_html(
                             presigned_post=response,
                             key_prefix=timestamp_key_prefix,
-                            expires_at=expires_at,
                             expiration_minutes=expiration // 60,
-                            max_size_mb=5120,  # Default 5GB limit (S3 single upload maximum)
+                            max_size_mb=100,  # Default 100MB limit
                             add_timestamp=False  # Timestamp already added in URL generation
                         )
                         logging.info("HTML form generated successfully")
@@ -594,14 +576,13 @@ def generate_presigned_url():
         logging.error(f"An unexpected error occurred generating presigned URL: {e}")
         return jsonify({"success": False, "message": f"Error: {str(e)}"})
 
-def generate_upload_html(presigned_post, key_prefix, expires_at, expiration_minutes, max_size_mb=100, add_timestamp=True):
+def generate_upload_html(presigned_post, key_prefix, expiration_minutes, max_size_mb=100, add_timestamp=True):
     """Generate a standalone HTML upload form using template
     
     Args:
         presigned_post: The presigned POST data from S3
         key_prefix: The S3 key prefix (may already include timestamp)
-        expires_at: The actual expiration datetime of the presigned URL
-        expiration_minutes: How long the form is valid (for backward compatibility)
+        expiration_minutes: How long the form is valid
         max_size_mb: Maximum file size in MB
         add_timestamp: Whether to add timestamp subfolder (False if already added)
     """
@@ -618,6 +599,459 @@ def generate_upload_html(presigned_post, key_prefix, expires_at, expiration_minu
             escaped_value = str(field_value).replace('{', '{{').replace('}', '}}')
             hidden_fields += f'    <input type="hidden" name="{field_name}" value="{escaped_value}"/>\n'
     
+    # HTML content now loaded from template file
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Upload Form</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * {{ box-sizing: border-box; }}
+        body {{ 
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; 
+            margin: 0; padding: 2rem; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }}
+        .container {{
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }}
+        .header {{
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }}
+        .header h1 {{ margin: 0; font-weight: 300; }}
+        .header p {{ margin: 10px 0 0 0; opacity: 0.9; }}
+        .content {{ padding: 40px; }}
+        .form-group {{ margin-bottom: 25px; }}
+        label {{ 
+            display: block; 
+            margin-bottom: 8px; 
+            font-weight: 600; 
+            color: #2c3e50;
+            font-size: 14px;
+        }}
+        input[type="file"] {{
+            width: 100%;
+            padding: 15px;
+            border: 2px dashed #667eea;
+            border-radius: 8px;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }}
+        input[type="file"]:hover {{
+            border-color: #2c3e50;
+            background: white;
+        }}
+        .btn {{
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 20px;
+        }}
+        .btn:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }}
+        .btn:disabled {{
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }}
+        .info-box {{
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #17a2b8;
+            font-size: 14px;
+        }}
+        .progress-container {{
+            margin-top: 20px;
+            display: none;
+        }}
+        progress {{
+            width: 100%;
+            height: 12px;
+            border-radius: 6px;
+        }}
+        .result {{
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+        }}
+        .result.success {{
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }}
+        .result.error {{
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }}
+        .details {{
+            margin-top: 20px;
+            font-size: 14px;
+        }}
+        .details summary {{
+            cursor: pointer;
+            font-weight: 600;
+            padding: 10px 0;
+        }}
+        .details-content {{
+            padding: 10px 0;
+            color: #6c757d;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔗 Upload Form</h1>
+            <p>Secure file upload - <span id="timeRemaining">Calculating remaining time...</span></p>
+        </div>
+        
+        <div class="content">
+            <div class="info-box">
+                <strong>📁 Upload Location:</strong> {upload_location}<br>
+                <strong>📊 Max File Size:</strong> {max_size_mb} MB<br>
+                <strong>🔒 Security:</strong> Files upload directly to S3 with temporary access
+            </div>
+            
+            <form id="uploadForm" action="{post_url}" method="post" enctype="multipart/form-data">
+                {hidden_fields}
+                <input type="hidden" name="key" value="{key_with_placeholder}">
+                
+                <div class="form-group">
+                    <label for="fileInput">Choose File to Upload</label>
+                    <input id="fileInput" name="file" type="file" required />
+                </div>
+                
+                <button type="submit" class="btn" id="uploadBtn">
+                    📤 Upload File
+                </button>
+                
+                <div class="progress-container" id="progressContainer">
+                    <progress id="progressBar" value="0" max="100"></progress>
+                    <div style="text-align: center; margin-top: 10px;">
+                        <span id="progressText">Uploading...</span>
+                    </div>
+                </div>
+                
+                <div class="result" id="resultDiv"></div>
+            </form>
+            
+            <div class="details">
+                <details>
+                    <summary>ℹ️ Technical Details</summary>
+                    <div class="details-content">
+                        <p><strong>Upload Method:</strong> Direct POST to S3</p>
+                        <p><strong>Success Response:</strong> 201 Created with XML</p>
+                        <p><strong>Key Pattern:</strong> {key_pattern}</p>
+                        <p><strong>Generated:</strong> {generated_time}</p>
+                    </div>
+                </details>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {{
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('fileInput');
+            const uploadBtn = document.getElementById('uploadBtn');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const resultDiv = document.getElementById('resultDiv');
+            
+            if (!fileInput.files[0]) {{
+                alert('Please select a file to upload');
+                return;
+            }}
+            
+            const file = fileInput.files[0];
+            const maxSize = {max_size_mb} * 1024 * 1024; // Convert MB to bytes
+            
+            if (file.size > maxSize) {{
+                alert(`File size (${{(file.size / 1024 / 1024).toFixed(2)}} MB) exceeds the maximum allowed size ({max_size_mb} MB)`);
+                return;
+            }}
+            
+            // Prepare form data
+            const formData = new FormData(this);
+            
+            // Validate and update key with actual filename
+            const keyInput = this.querySelector('input[name="key"]');
+            
+            // Validate S3 object key
+            const validationResult = validateS3ObjectKey(file.name);
+            if (!validationResult.valid) {{
+                alert(`Invalid filename: ${{validationResult.error}}\n\n${{validationResult.hint}}`);
+                return;
+            }}
+            
+            keyInput.value = keyInput.value.replace('${filename}', validationResult.sanitizedName);
+            
+            // Store sanitized filename for success message
+            window.sanitizedFilename = validationResult.sanitizedName;
+            
+            // Show progress
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = '⏳ Uploading...';
+            progressContainer.style.display = 'block';
+            resultDiv.style.display = 'none';
+            
+            // Create XMLHttpRequest for progress tracking
+            const xhr = new XMLHttpRequest();
+            
+            xhr.upload.addEventListener('progress', function(e) {{
+                if (e.lengthComputable) {{
+                    const percentComplete = (e.loaded / e.total) * 100;
+                    const uploadedMB = (e.loaded / 1024 / 1024).toFixed(1);
+                    const totalMB = (e.total / 1024 / 1024).toFixed(1);
+                    
+                    progressBar.value = percentComplete;
+                    progressText.textContent = `Uploading... ${{Math.round(percentComplete)}}% (${{uploadedMB}}/${{totalMB}} MB)`;
+                }} else {{
+                    // For streams of unknown size (as mentioned in AWS article)
+                    progressText.textContent = `Uploading... ${{(e.loaded / 1024 / 1024).toFixed(1)}} MB uploaded`;
+                }}
+            }});
+            
+            xhr.addEventListener('load', function() {{
+                progressContainer.style.display = 'none';
+                resultDiv.style.display = 'block';
+                
+                if (xhr.status === 201 || xhr.status === 204) {{
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>✅ Upload Successful!</strong><br>
+                        File "${{window.sanitizedFilename}}" has been uploaded successfully.<br>
+                        <small>Location: {key_prefix}${{window.sanitizedFilename || 'uploaded-file'}}</small>
+                    `;
+                    
+                    // Reset form
+                    fileInput.value = '';
+                    uploadBtn.disabled = false;
+                    uploadBtn.textContent = '📤 Upload Another File';
+                }} else {{
+                    resultDiv.className = 'result error';
+                    let errorMessage = 'Upload Failed';
+                    let suggestion = 'Please try again or check your file.';
+                    
+                    // Provide specific error guidance based on status codes
+                    switch(xhr.status) {{
+                        case 403:
+                            errorMessage = 'Access Denied';
+                            suggestion = 'The upload form may have expired or your file may be too large. Try refreshing the form or reducing file size.';
+                            break;
+                        case 400:
+                            errorMessage = 'Bad Request';
+                            suggestion = 'There may be an issue with the file format or upload parameters. Please try a different file.';
+                            break;
+                        case 413:
+                            errorMessage = 'File Too Large';
+                            suggestion = `Your file exceeds the maximum allowed size of {max_size_mb} MB. Please select a smaller file.`;
+                            break;
+                        case 0:
+                            errorMessage = 'Network Error';
+                            suggestion = 'Please check your internet connection and try again.';
+                            break;
+                        default:
+                            if (xhr.status >= 500) {{
+                                errorMessage = 'Server Error';
+                                suggestion = 'There was a temporary server issue. Please try again in a few moments.';
+                            }}
+                    }}
+                    
+                    resultDiv.innerHTML = `
+                        <strong>❌ ${{errorMessage}}</strong><br>
+                        Status: ${{xhr.status}} ${{xhr.statusText}}<br>
+                        <small>${{suggestion}}</small>
+                    `;
+                    uploadBtn.disabled = false;
+                    uploadBtn.textContent = '📤 Upload File';
+                }}
+            }});
+            
+            xhr.addEventListener('error', function() {{
+                progressContainer.style.display = 'none';
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `
+                    <strong>❌ Network Upload Error</strong><br>
+                    A network error occurred during upload. This could be due to:<br>
+                    <small>
+                    • Internet connection issues<br>
+                    • CORS configuration problems (if ETag header not exposed)<br>
+                    • Firewall or proxy blocking the upload<br>
+                    <br>
+                    Please check your connection and try again.
+                    </small>
+                `;
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = '📤 Upload File';
+            }});
+            
+            xhr.open('POST', this.action);
+            xhr.send(formData);
+        }});
+        
+        // File input change handler
+        document.getElementById('fileInput').addEventListener('change', function() {{
+            const file = this.files[0];
+            if (file) {{
+                const maxSize = {max_size_mb} * 1024 * 1024;
+                if (file.size > maxSize) {{
+                    alert(`File size (${{(file.size / 1024 / 1024).toFixed(2)}} MB) exceeds the maximum allowed size ({max_size_mb} MB)`);
+                    this.value = '';
+                }}
+            }}
+        }});
+        
+        // Dynamic expiration countdown
+        function startExpirationCountdown() {{
+            const expiresInMinutes = {expiration_minutes};
+            const expirationTime = new Date(Date.now() + (expiresInMinutes * 60 * 1000));
+            const timeRemainingElement = document.getElementById('timeRemaining');
+            
+            function updateCountdown() {{
+                const now = new Date();
+                const timeLeft = expirationTime - now;
+                
+                if (timeLeft <= 0) {{
+                    timeRemainingElement.textContent = 'EXPIRED - This upload form is no longer valid';
+                    timeRemainingElement.style.color = '#dc3545';
+                    document.getElementById('uploadBtn').disabled = true;
+                    document.getElementById('uploadBtn').textContent = '❌ Form Expired';
+                    return;
+                }}
+                
+                const hours = Math.floor(timeLeft / (1000 * 60 * 60));
+                const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+                
+                let timeString = 'Expires in ';
+                if (hours > 0) timeString += `${{hours}}h `;
+                if (minutes > 0) timeString += `${{minutes}}m `;
+                timeString += `${{seconds}}s`;
+                
+                timeRemainingElement.textContent = timeString;
+                
+                // Change color as expiration approaches
+                if (timeLeft < 300000) {{ // Less than 5 minutes
+                    timeRemainingElement.style.color = '#dc3545'; // Red
+                }} else if (timeLeft < 900000) {{ // Less than 15 minutes  
+                    timeRemainingElement.style.color = '#fd7e14'; // Orange
+                }} else {{
+                    timeRemainingElement.style.color = 'inherit';
+                }}
+            }}
+            
+            updateCountdown(); // Initial call
+            setInterval(updateCountdown, 1000); // Update every second
+        }}
+        
+        // S3 Object Key Validation
+        function validateS3ObjectKey(filename) {{
+            const hint = `Object Key (Filename) Limitations:
+
+Length: A key's UTF-8 encoded name can be up to 1024 bytes long, which can be around 1024 characters.
+Characters: Can contain uppercase letters, numbers, and symbols like underscores (_), dashes (-), and forward slashes (/).
+Directory Segments: Each segment of a virtual directory (e.g., folder/subfolder/file.txt, each part is a segment) is limited to 255 characters.
+Prefixes: An object key cannot begin with a forward slash.`;
+
+            // Check length
+            const filenameSize = new Blob([filename]).size;
+            if (filenameSize > 1024) {{
+                return {{
+                    valid: false,
+                    error: `Filename is too long (${{filenameSize}} bytes, max 1024 bytes)`,
+                    hint: hint
+                }};
+            }}
+            
+            // Check for invalid characters (S3 allows most characters, but some are problematic)
+            const invalidChars = /[\\x00-\\x1f\\x7f"'<>&|]/;
+            if (invalidChars.test(filename)) {{
+                return {{
+                    valid: false,
+                    error: `Filename contains invalid characters. Avoid control characters, quotes, and special symbols.`,
+                    hint: hint
+                }};
+            }}
+            
+            // Check if starts with forward slash
+            if (filename.startsWith('/')) {{
+                return {{
+                    valid: false,
+                    error: `Filename cannot start with a forward slash (/)`,
+                    hint: hint
+                }};
+            }}
+            
+            // Check directory segments
+            const segments = filename.split('/');
+            for (let segment of segments) {{
+                const segmentSize = new Blob([segment]).size;
+                if (segmentSize > 255) {{
+                    return {{
+                        valid: false,
+                        error: `Directory segment '${{segment}}' is too long (${{segmentSize}} bytes, max 255 bytes per segment)`,
+                        hint: hint
+                    }};
+                }}
+            }}
+            
+            // Basic sanitization: replace problematic characters
+            let sanitizedName = filename
+                .replace(/[\\x00-\\x1f\\x7f]/g, '') // Remove control characters
+                .replace(/["'<>&|]/g, '_'); // Replace problematic characters with underscore
+            
+            return {{
+                valid: true,
+                sanitizedName: sanitizedName,
+                hint: hint
+            }};
+        }}
+
+        // Enhanced file size validation
+        function formatFileSize(bytes) {{
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }}
+        
+        // Start countdown when page loads
+        document.addEventListener('DOMContentLoaded', function() {{
+            startExpirationCountdown();
+        }});
+    </script>
+</body>
+</html>"""
+    
     try:
         # Use template rendering instead of string formatting
         template_params = {
@@ -630,7 +1064,6 @@ def generate_upload_html(presigned_post, key_prefix, expires_at, expiration_minu
             'key_prefix': key_prefix,
             'generated_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'expiration_minutes': expiration_minutes or 1,
-            'expires_at_iso': expires_at.isoformat() if expires_at else None,
             'filename_placeholder': '${filename}'  # Clean placeholder for JavaScript
         }
         
@@ -680,140 +1113,6 @@ def save_html_file():
     except Exception as e:
         logging.error(f"Error in save_html_file: {e}")
         return jsonify({"success": False, "message": f"Error saving file: {str(e)}"})
-
-@app.route("/generate-multi-presigned-posts", methods=["POST"])
-def generate_multi_presigned_posts():
-    """Generate multiple pre-signed POST URLs with file matching rules"""
-    try:
-        data = request.get_json()
-        access_key = data.get("access_key")
-        secret_key = data.get("secret_key")
-        session_token = data.get("session_token")
-        region = data.get("region", "us-east-1")
-        bucket = data.get("bucket")
-        base_prefix = data.get("base_prefix", "")  # Base folder path
-        expiration = int(data.get("expiration", 3600))  # Default 1 hour
-        use_timestamp_prefix = data.get("use_timestamp_prefix", True)
-        
-        # Array of file type configurations
-        file_configs = data.get("file_configs", [])
-        
-        logging.info(f"Generating multiple presigned POST URLs for bucket '{bucket}' with {len(file_configs)} file type configs")
-
-        if not access_key or not secret_key or not bucket:
-            logging.warning("Missing required credentials for multi-presigned URL generation")
-            return jsonify({"success": False, "message": "Missing required credentials (access_key, secret_key, bucket)"})
-        
-        if not file_configs:
-            logging.warning("No file configurations provided")
-            return jsonify({"success": False, "message": "At least one file_config is required"})
-
-        # Create S3 session and client
-        session_kwargs = {
-            "aws_access_key_id": access_key,
-            "aws_secret_access_key": secret_key,
-            "region_name": region
-        }
-        if session_token:
-            session_kwargs["aws_session_token"] = session_token
-
-        session = boto3.Session(**session_kwargs)
-        s3 = session.client(
-            "s3",
-            config=Config(
-                signature_version='s3v4',
-                s3={
-                    'addressing_style': 'virtual'
-                }
-            )
-        )
-
-        # Generate timestamp folder if requested
-        timestamp_folder = ""
-        if use_timestamp_prefix:
-            timestamp_folder = datetime.now().strftime('%Y%m%d-%H%M%S') + "/"
-
-        presigned_configs = []
-        
-        for config in file_configs:
-            label = config.get("label", "files")
-            match_rules = config.get("match", {})
-            content_type_prefix = config.get("content_type_prefix")  # Optional: enforce content type in policy
-            max_size_mb = config.get("max_size_mb", 5120)  # Default 5GB per file (S3 single upload limit)
-            
-            # Build the key prefix for this file type
-            file_type_prefix = base_prefix
-            if file_type_prefix and not file_type_prefix.endswith('/'):
-                file_type_prefix += '/'
-            file_type_prefix += timestamp_folder
-            
-            # If label is provided, add it as a subfolder
-            if label and label != "files":
-                file_type_prefix += f"{label}/"
-            
-            # Prepare conditions for this file type
-            conditions = []
-            fields = {}
-            
-            # Key prefix condition - allow any filename after the prefix
-            conditions.append(["starts-with", "$key", file_type_prefix])
-            
-            # File size limit
-            max_file_size = max_size_mb * 1024 * 1024
-            conditions.append(["content-length-range", 1, max_file_size])
-            
-            # Optional: Content-Type enforcement in policy
-            if content_type_prefix:
-                conditions.append(["starts-with", "$Content-Type", content_type_prefix])
-                
-            # Generate presigned POST for this file type
-            try:
-                response = s3.generate_presigned_post(
-                    Bucket=bucket,
-                    Key=file_type_prefix + "${filename}",  # Template key
-                    Fields=fields,
-                    Conditions=conditions,
-                    ExpiresIn=expiration
-                )
-                
-                # Build the presigned config in the format expected by frontend
-                presigned_config = {
-                    "label": label,
-                    "match": match_rules,
-                    "url": response["url"],
-                    "fields": response["fields"].copy()
-                }
-                
-                # Set key field to empty (frontend will set it dynamically)
-                presigned_config["fields"]["key"] = ""
-                
-                presigned_configs.append(presigned_config)
-                
-                logging.info(f"Generated presigned POST for '{label}' file type with prefix '{file_type_prefix}'")
-                
-            except ClientError as e:
-                logging.error(f"Failed to generate presigned POST for '{label}': {e}")
-                return jsonify({"success": False, "message": f"Failed to generate presigned POST for '{label}': {str(e)}"})
-
-        # Calculate timestamps  
-        issued_at = datetime.now()
-        expires_at = issued_at + timedelta(seconds=expiration)
-
-        logging.info(f"Successfully generated {len(presigned_configs)} presigned POST configurations")
-        
-        return jsonify({
-            "success": True,
-            "presigned_configs": presigned_configs,
-            "base_prefix": base_prefix,
-            "timestamp_folder": timestamp_folder,
-            "issued_at": issued_at.isoformat(),
-            "expires_at": expires_at.isoformat(),
-            "expiration_seconds": expiration
-        })
-
-    except Exception as e:
-        logging.error(f"An unexpected error occurred generating multi-presigned URLs: {e}")
-        return jsonify({"success": False, "message": f"Error: {str(e)}"})
 
 @app.route("/parse-presigned-url", methods=["POST"])
 def parse_presigned_url():
@@ -916,257 +1215,6 @@ def list_buckets():
         logging.error(f"An unexpected error occurred listing buckets: {e}")
         return jsonify({"success": False, "message": f"Error: {str(e)}"})
 
-@app.route("/s3-delete-object", methods=["POST"])
-def s3_delete_object():
-    """Delete an S3 object"""
-    try:
-        data = request.get_json()
-        access_key = data.get("access_key")
-        secret_key = data.get("secret_key")
-        session_token = data.get("session_token")
-        region = data.get("region", "us-east-1")
-        bucket = data.get("bucket")
-        key = data.get("key")
-
-        logging.info(f"Deleting object '{key}' from bucket '{bucket}'")
-
-        if not access_key or not secret_key or not bucket or not key:
-            logging.warning("Missing required parameters for object deletion")
-            return jsonify({"success": False, "message": "Missing required parameters"})
-
-        # Create S3 session and client
-        session_kwargs = {
-            "aws_access_key_id": access_key,
-            "aws_secret_access_key": secret_key,
-            "region_name": region
-        }
-        if session_token:
-            session_kwargs["aws_session_token"] = session_token
-
-        session = boto3.Session(**session_kwargs)
-        s3 = session.client("s3")
-
-        # Delete the object
-        s3.delete_object(Bucket=bucket, Key=key)
-        
-        logging.info(f"Successfully deleted object '{key}' from bucket '{bucket}'")
-        return jsonify({
-            "success": True,
-            "message": f"Successfully deleted {key}"
-        })
-
-    except ClientError as e:
-        logging.error(f"ClientError deleting object: {e}")
-        return jsonify({"success": False, "message": f"AWS Error: {str(e)}"})
-    except Exception as e:
-        logging.error(f"An unexpected error occurred deleting object: {e}")
-        return jsonify({"success": False, "message": f"Error: {str(e)}"})
-
-@app.route("/s3-download-zip", methods=["POST"])
-def s3_download_zip():
-    """Download multiple S3 objects as a ZIP file"""
-    try:
-        data = request.get_json()
-        access_key = data.get("access_key")
-        secret_key = data.get("secret_key")
-        session_token = data.get("session_token")
-        region = data.get("region", "us-east-1")
-        bucket = data.get("bucket")
-        keys = data.get("keys", [])
-
-        logging.info(f"Creating ZIP download for {len(keys)} objects from bucket '{bucket}'")
-
-        if not access_key or not secret_key or not bucket or not keys:
-            logging.warning("Missing required parameters for ZIP download")
-            return jsonify({"success": False, "message": "Missing required parameters"}), 400
-
-        # Create S3 session and client
-        session_kwargs = {
-            "aws_access_key_id": access_key,
-            "aws_secret_access_key": secret_key,
-            "region_name": region
-        }
-        if session_token:
-            session_kwargs["aws_session_token"] = session_token
-
-        session = boto3.Session(**session_kwargs)
-        s3 = session.client("s3")
-
-        # Create ZIP file in memory
-        zip_buffer = io.BytesIO()
-        
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            for key in keys:
-                try:
-                    # Download object from S3
-                    response = s3.get_object(Bucket=bucket, Key=key)
-                    object_data = response['Body'].read()
-                    
-                    # Add to ZIP with proper filename (remove path prefixes if needed)
-                    filename = key.split('/')[-1] if '/' in key else key
-                    
-                    # Handle folders (objects ending with /)
-                    if key.endswith('/'):
-                        # Skip folder markers in ZIP
-                        continue
-                    
-                    zip_file.writestr(filename, object_data)
-                    logging.info(f"Added '{key}' to ZIP as '{filename}'")
-                    
-                except ClientError as e:
-                    logging.error(f"Error downloading object '{key}': {e}")
-                    # Add error file to ZIP to inform user
-                    error_content = f"Error downloading {key}: {str(e)}"
-                    zip_file.writestr(f"ERROR_{key.replace('/', '_')}.txt", error_content)
-                except Exception as e:
-                    logging.error(f"Unexpected error downloading object '{key}': {e}")
-                    error_content = f"Unexpected error downloading {key}: {str(e)}"
-                    zip_file.writestr(f"ERROR_{key.replace('/', '_')}.txt", error_content)
-
-        zip_buffer.seek(0)
-        
-        # Generate filename
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        zip_filename = f"s3_files_{bucket}_{timestamp}.zip"
-        
-        logging.info(f"ZIP file created successfully with {len(keys)} objects")
-        
-        # Return ZIP file as response
-        return Response(
-            zip_buffer.getvalue(),
-            mimetype='application/zip',
-            headers={
-                'Content-Disposition': f'attachment; filename={zip_filename}',
-                'Content-Length': str(len(zip_buffer.getvalue()))
-            }
-        )
-
-    except ClientError as e:
-        logging.error(f"ClientError creating ZIP download: {e}")
-        return jsonify({"success": False, "message": f"AWS Error: {str(e)}"}), 500
-    except Exception as e:
-        logging.error(f"An unexpected error occurred creating ZIP download: {e}")
-        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
-
-@app.route("/s3-check-file", methods=["POST"])
-def s3_check_file():
-    """Check if S3 file exists and get its size"""
-    try:
-        data = request.get_json()
-        access_key = data.get("access_key")
-        secret_key = data.get("secret_key")
-        session_token = data.get("session_token")
-        region = data.get("region", "us-east-1")
-        bucket = data.get("bucket")
-        key = data.get("key")
-
-        logging.info(f"Checking file '{key}' in bucket '{bucket}'")
-
-        if not access_key or not secret_key or not bucket or not key:
-            logging.warning("Missing required parameters for file check")
-            return jsonify({"success": False, "message": "Missing required parameters"})
-
-        # Create S3 session and client
-        session_kwargs = {
-            "aws_access_key_id": access_key,
-            "aws_secret_access_key": secret_key,
-            "region_name": region
-        }
-        if session_token:
-            session_kwargs["aws_session_token"] = session_token
-
-        session = boto3.Session(**session_kwargs)
-        s3 = session.client("s3")
-
-        try:
-            # Use head_object to check existence and get metadata
-            response = s3.head_object(Bucket=bucket, Key=key)
-            
-            logging.info(f"File '{key}' exists with size {response['ContentLength']}")
-            return jsonify({
-                "success": True,
-                "exists": True,
-                "size": response['ContentLength'],
-                "last_modified": response['LastModified'].isoformat(),
-                "etag": response.get('ETag', '').strip('"')
-            })
-            
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'NoSuchKey' or e.response['Error']['Code'] == '404':
-                logging.info(f"File '{key}' does not exist")
-                return jsonify({
-                    "success": True,
-                    "exists": False,
-                    "size": None
-                })
-            else:
-                logging.error(f"Error checking file '{key}': {e}")
-                return jsonify({"success": False, "message": f"Error checking file: {str(e)}"})
-
-    except Exception as e:
-        logging.error(f"An unexpected error occurred checking file: {e}")
-        return jsonify({"success": False, "message": f"Error: {str(e)}"})
-
-@app.route("/s3-search-file", methods=["POST"])
-def s3_search_file():
-    """Search for files with same name and size in bucket"""
-    try:
-        data = request.get_json()
-        access_key = data.get("access_key")
-        secret_key = data.get("secret_key")
-        session_token = data.get("session_token")
-        region = data.get("region", "us-east-1")
-        bucket = data.get("bucket")
-        filename = data.get("filename")
-        expected_size = data.get("expected_size")
-
-        logging.info(f"Searching for file '{filename}' with size {expected_size} in bucket '{bucket}'")
-
-        if not access_key or not secret_key or not bucket or not filename:
-            return jsonify({"success": False, "message": "Missing required parameters"})
-
-        # Create S3 session and client
-        session_kwargs = {
-            "aws_access_key_id": access_key,
-            "aws_secret_access_key": secret_key,
-            "region_name": region
-        }
-        if session_token:
-            session_kwargs["aws_session_token"] = session_token
-
-        session = boto3.Session(**session_kwargs)
-        s3 = session.client("s3")
-
-        # Search for files with matching name
-        matching_files = []
-        
-        try:
-            paginator = s3.get_paginator("list_objects_v2")
-            for page in paginator.paginate(Bucket=bucket):
-                for obj in page.get("Contents", []):
-                    obj_filename = obj["Key"].split('/')[-1]  # Get filename from full path
-                    if obj_filename == filename:
-                        matching_files.append({
-                            "key": obj["Key"],
-                            "size": obj["Size"],
-                            "last_modified": obj["LastModified"].isoformat(),
-                            "size_matches": obj["Size"] == expected_size
-                        })
-            
-            logging.info(f"Found {len(matching_files)} files matching '{filename}'")
-            return jsonify({
-                "success": True,
-                "matches": matching_files
-            })
-            
-        except Exception as e:
-            logging.error(f"Error searching for file '{filename}': {e}")
-            return jsonify({"success": False, "message": f"Error searching: {str(e)}"})
-
-    except Exception as e:
-        logging.error(f"An unexpected error occurred searching for file: {e}")
-        return jsonify({"success": False, "message": f"Error: {str(e)}"})
-
 @app.route("/")
 def index():
     """Redirect to wizard as main interface"""
@@ -1227,198 +1275,6 @@ def extension_renamer():
 
     logging.info("Rendering form.html for GET request.")
     return render_template("form.html")
-
-@app.route("/wizard/extension-renamer", methods=["POST"])
-def wizard_extension_renamer():
-    """Wizard-specific endpoint for extension renamer that returns JSON data"""
-    try:
-        # Handle both form data and JSON data
-        if request.content_type == 'application/json':
-            data = request.get_json()
-            access_key = data.get("access_key")
-            secret_key = data.get("secret_key")
-            session_token = data.get("session_token")
-            region = data.get("region", "us-east-1")
-            bucket = data.get("bucket")
-            prefix = data.get("prefix", "")
-            old_ext = data.get("old_ext")
-            new_ext = data.get("new_ext")
-            keep_original = data.get("keep_original", False)
-            recursive = data.get("recursive", True)
-        else:
-            access_key = request.form["access_key"]
-            secret_key = request.form["secret_key"]
-            session_token = request.form.get("session_token")
-            region = request.form.get("region", "us-east-1")
-            bucket = request.form["bucket"]
-            prefix = request.form.get("prefix", "")
-            old_ext = request.form["old_ext"]
-            new_ext = request.form["new_ext"]
-            keep_original = "keep_original" in request.form
-            recursive = "recursive" in request.form
-
-        logging.info(f"Wizard extension renamer request for bucket '{bucket}' with prefix '{prefix}'.")
-
-        # Validate required fields
-        if not access_key or not secret_key or not bucket or not old_ext or not new_ext:
-            return jsonify({
-                "success": False,
-                "message": "Missing required fields: access_key, secret_key, bucket, old_ext, new_ext"
-            })
-
-        # Validate extensions
-        if not old_ext.startswith('.'):
-            old_ext = '.' + old_ext
-        if not new_ext.startswith('.'):
-            new_ext = '.' + new_ext
-
-        # Create S3 session
-        session_kwargs = {
-            "aws_access_key_id": access_key,
-            "aws_secret_access_key": secret_key,
-            "region_name": region
-        }
-        if session_token:
-            session_kwargs["aws_session_token"] = session_token
-
-        session = boto3.Session(**session_kwargs)
-        s3 = session.client("s3")
-
-        # Get matching files
-        matching_files = list_matching_files(s3, bucket, prefix, old_ext, recursive)
-        logging.info(f"Wizard: Successfully retrieved {len(matching_files)} files for preview.")
-
-        return jsonify({
-            "success": True,
-            "files": matching_files,
-            "file_count": len(matching_files),
-            "config": {
-                "bucket": bucket,
-                "prefix": prefix,
-                "old_ext": old_ext,
-                "new_ext": new_ext,
-                "keep_original": keep_original,
-                "recursive": recursive
-            }
-        })
-
-    except NoCredentialsError:
-        logging.error("Wizard: NoCredentialsError - Invalid AWS credentials provided.")
-        return jsonify({
-            "success": False,
-            "message": "Invalid AWS credentials provided."
-        })
-    except ClientError as e:
-        logging.error(f"Wizard: ClientError - {e}")
-        return jsonify({
-            "success": False,
-            "message": f"AWS Error: {str(e)}"
-        })
-    except Exception as e:
-        logging.error(f"Wizard: Unexpected error - {e}")
-        return jsonify({
-            "success": False,
-            "message": f"Error: {str(e)}"
-        })
-
-@app.route("/wizard/extension-renamer/execute", methods=["POST"])
-def wizard_extension_renamer_execute():
-    """Execute the extension rename operation from the wizard"""
-    try:
-        data = request.get_json()
-        
-        # Get configuration and selected files
-        config = data.get("config", {})
-        selected_files = data.get("selected_files", [])
-        
-        if not selected_files:
-            return jsonify({
-                "success": False,
-                "message": "No files selected for processing."
-            })
-        
-        # Extract configuration
-        access_key = config.get("access_key")
-        secret_key = config.get("secret_key")
-        session_token = config.get("session_token")
-        region = config.get("region", "us-east-1")
-        bucket = config.get("bucket")
-        old_ext = config.get("old_ext")
-        new_ext = config.get("new_ext")
-        keep_original = config.get("keep_original", False)
-        
-        if not all([access_key, secret_key, bucket, old_ext, new_ext]):
-            return jsonify({
-                "success": False,
-                "message": "Missing required configuration parameters."
-            })
-        
-        logging.info(f"Wizard: Executing rename operation on {len(selected_files)} files in bucket '{bucket}'.")
-        
-        # Create S3 session
-        session_kwargs = {
-            "aws_access_key_id": access_key,
-            "aws_secret_access_key": secret_key,
-            "region_name": region
-        }
-        if session_token:
-            session_kwargs["aws_session_token"] = session_token
-            
-        session = boto3.Session(**session_kwargs)
-        s3 = session.client("s3")
-        
-        # Process each selected file
-        success_count = 0
-        error_count = 0
-        errors = []
-        
-        for key in selected_files:
-            try:
-                new_key = key[:-len(old_ext)] + new_ext
-                logging.info(f"Wizard: Attempting to rename '{key}' to '{new_key}'.")
-                
-                # Copy to new key
-                s3.copy_object(Bucket=bucket, CopySource={'Bucket': bucket, 'Key': key}, Key=new_key)
-                
-                # Delete original if not keeping it
-                if not keep_original:
-                    s3.delete_object(Bucket=bucket, Key=key)
-                    logging.info(f"Wizard: Successfully deleted original file '{key}'.")
-                
-                success_count += 1
-                logging.info(f"Wizard: Successfully processed '{key}'.")
-                
-            except ClientError as e:
-                error_msg = f"Error processing {key}: {str(e)}"
-                logging.error(f"Wizard: ClientError - {error_msg}")
-                errors.append(error_msg)
-                error_count += 1
-            except Exception as e:
-                error_msg = f"Unexpected error processing {key}: {str(e)}"
-                logging.error(f"Wizard: {error_msg}")
-                errors.append(error_msg)
-                error_count += 1
-        
-        result_message = f"Successfully processed {success_count} files."
-        if error_count > 0:
-            result_message += f" {error_count} files had errors."
-        
-        logging.info(f"Wizard: Processing complete. {result_message}")
-        
-        return jsonify({
-            "success": True,
-            "message": result_message,
-            "success_count": success_count,
-            "error_count": error_count,
-            "errors": errors
-        })
-        
-    except Exception as e:
-        logging.error(f"Wizard: Unexpected error during execution: {e}")
-        return jsonify({
-            "success": False,
-            "message": f"Error: {str(e)}"
-        })
 
 @app.route("/confirm", methods=["POST"])
 def confirm():
@@ -1550,9 +1406,9 @@ if __name__ == "__main__":
     if args.web:
         # Run as web application
         logging.info(f"Starting web application on http://127.0.0.1:{port}")
-        print(f"\nS3 Helper is running at: http://127.0.0.1:{port}")
-        print("Note: In web mode, credentials are stored in browser session storage")
-        print("Press Ctrl+C to stop the server\n")
+        print(f"\n🌐 S3 Extension Renamer is running at: http://127.0.0.1:{port}")
+        print("📝 Note: In web mode, credentials are stored in browser session storage")
+        print("🛑 Press Ctrl+C to stop the server\n")
         
         try:
             # Keep the main thread alive
@@ -1560,12 +1416,12 @@ if __name__ == "__main__":
                 time.sleep(1)
         except KeyboardInterrupt:
             logging.info("Web server stopped by user")
-            print("\nServer stopped. Goodbye!")
+            print("\n👋 Server stopped. Goodbye!")
     else:
         # Run as desktop application with pywebview
         logging.info("Creating desktop window...")
         webview.create_window(
-            'S3 Helper',
+            'S3 Extension Renamer',
             f'http://127.0.0.1:{port}',
             width=1200,
             height=800,

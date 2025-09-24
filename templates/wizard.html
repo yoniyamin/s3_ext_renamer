@@ -1,0 +1,3472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S3 Wizard - Advanced Operations</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Select2 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <!-- Context Menu CSS -->
+    <style>
+        .context-menu {
+            position: fixed;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 10000;
+            min-width: 160px;
+            display: none;
+        }
+        .context-menu-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+            transition: background 0.2s;
+        }
+        .context-menu-item:hover {
+            background: #f5f5f5;
+        }
+        .context-menu-item:last-child {
+            border-bottom: none;
+        }
+        .context-menu-item.disabled {
+            color: #ccc;
+            cursor: not-allowed;
+        }
+        .context-menu-item.disabled:hover {
+            background: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div>
+                    <h1>S3 Wizard</h1>
+                    <p>Generate presigned URLs and manage S3 operations</p>
+                </div>
+                <button type="button" class="btn-minimal" id="mainExitBtn" style="margin-top: -20px;">
+                    🚪 Exit Application
+                </button>
+            </div>
+        </div>
+        
+        <div class="content">
+                <!-- Step Progress Indicator -->
+                <div class="wizard-progress">
+                    <div class="step completed" data-step="1">
+                        <div class="step-number">1</div>
+                        <div class="step-title">Action</div>
+                    </div>
+                    <div class="step" data-step="2">
+                        <div class="step-number">2</div>
+                        <div class="step-title">Credentials</div>
+                    </div>
+                    <div class="step" data-step="3">
+                        <div class="step-number">3</div>
+                        <div class="step-title" id="step-3-title">Configuration</div>
+                    </div>
+                    <div class="step" data-step="4" id="step-4-indicator">
+                        <div class="step-number">4</div>
+                        <div class="step-title">Results</div>
+                    </div>
+                </div>
+
+                <!-- Step 1: Action Selection -->
+                <div class="wizard-step active" id="step-1">
+                    <h3>Step 1: Choose Operation</h3>
+                    <div class="action-selection">
+                        <div class="action-card" data-action="presigned">
+                            <div class="action-icon">🔗</div>
+                            <h4>Generate Presigned URL</h4>
+                            <p>Create upload/download URLs with temporary access</p>
+                        </div>
+                        <div class="action-card" data-action="parser">
+                            <div class="action-icon">🔍</div>
+                            <h4>Parse Presigned URL</h4>
+                            <p>Analyze existing presigned URLs for expiration info</p>
+                        </div>
+                        <div class="action-card" data-action="rename">
+                            <div class="action-icon">🔄</div>
+                            <h4>Rename Extension</h4>
+                            <p>Safely rename file extensions in your S3 bucket</p>
+                        </div>
+                        <div class="action-card" data-action="filebrowser">
+                            <div class="action-icon">📁</div>
+                            <h4>File Browser</h4>
+                            <p>Browse, manage, and download files and folders</p>
+                        </div>
+                    </div>
+                    
+                    <div class="wizard-navigation">
+                        <button type="button" class="btn" onclick="nextStep()" id="action-next" disabled>Next: Enter Credentials</button>
+                    </div>
+                </div>
+
+                <!-- Step 2: Credentials -->
+                <div class="wizard-step" id="step-2">
+                    <h3>Step 2: AWS Credentials</h3>
+                    
+                    <!-- Access Key and Secret Key side by side -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="wizard-access-key">AWS Access Key:</label>
+                            <input type="text" id="wizard-access-key" name="access_key" required 
+                                   placeholder="Enter your AWS Access Key">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="wizard-secret-key">AWS Secret Key:</label>
+                            <input type="password" id="wizard-secret-key" name="secret_key" required 
+                                   placeholder="Enter your AWS Secret Key">
+                        </div>
+                    </div>
+                    
+                    <!-- Save credentials checkbox with test button -->
+                    <div class="form-group credential-storage" style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" id="wizard-save-credentials" name="save_credentials">
+                            <label for="wizard-save-credentials">Save credentials for this session (encrypted)</label>
+                        </div>
+                        <button type="button" class="btn" id="wizard-test-connection-btn" 
+                                style="background: #17a2b8; padding: 6px 12px; font-size: 13px;">
+                            Test Connection
+                        </button>
+                    </div>
+                    <div style="margin-top: -10px; margin-bottom: 15px;">
+                        <small class="form-hint">Credentials will be cleared when you close the app</small>
+                        <div id="wizard-connection-status" class="connection-status"></div>
+                    </div>
+                    
+                    <!-- Session Token and Region side by side -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="wizard-session-token">Session Token (Optional):</label>
+                            <input type="password" id="wizard-session-token" name="session_token"
+                                   placeholder="Enter session token for temporary credentials">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="wizard-region">AWS Region:</label>
+                            <select id="wizard-region" name="region">
+                                <option value="us-east-1">US East (N. Virginia) - us-east-1</option>
+                                <option value="us-east-2">US East (Ohio) - us-east-2</option>
+                                <option value="us-west-1">US West (N. California) - us-west-1</option>
+                                <option value="us-west-2">US West (Oregon) - us-west-2</option>
+                                <option value="eu-west-1">EU (Ireland) - eu-west-1</option>
+                                <option value="eu-west-2">EU (London) - eu-west-2</option>
+                                <option value="eu-central-1">EU (Frankfurt) - eu-central-1</option>
+                                <option value="ap-southeast-1">Asia Pacific (Singapore) - ap-southeast-1</option>
+                                <option value="ap-southeast-2">Asia Pacific (Sydney) - ap-southeast-2</option>
+                                <option value="ap-northeast-1">Asia Pacific (Tokyo) - ap-northeast-1</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="wizard-navigation">
+                        <button type="button" class="btn btn-secondary" onclick="previousStep()">Previous</button>
+                        <button type="button" class="btn" onclick="nextStep()" id="credentials-next">Next: Configure</button>
+                    </div>
+                </div>
+
+                <!-- Step 3a: Presigned URL Configuration -->
+                <div class="wizard-step" id="step-3-presigned">
+                    <h3>Step 3: Presigned URL Configuration</h3>
+                    
+                    <div class="form-group">
+                        <label for="wizard-bucket">S3 Bucket Name (Optional if using IAM):</label>
+                        <div class="input-with-button">
+                            <input type="text" id="wizard-bucket" name="bucket" 
+                                   placeholder="my-bucket-name or leave empty for IAM default">
+                            <button type="button" id="browse-buckets-btn" class="btn-small">
+                                Browse
+                            </button>
+                        </div>
+                        <small class="form-hint">Leave empty if your IAM credentials are for a specific bucket</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>URL Type:</label>
+                        <div class="toggle-group">
+                            <button type="button" class="toggle-btn active" data-value="upload" onclick="selectUrlType('upload')">
+                                📤 Upload URL
+                            </button>
+                            <button type="button" class="toggle-btn" data-value="download" onclick="selectUrlType('download')">
+                                📥 Download URL
+                            </button>
+                        </div>
+                        <input type="hidden" id="wizard-url-type" name="url_type" value="upload">
+                        <small class="form-hint">Choose whether you want to upload to or download from S3</small>
+                    </div>
+                    
+                    <div class="form-group" id="upload-options" style="display: none;">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="wizard-generate-html" name="generate_html" checked>
+                            <label for="wizard-generate-html">Generate share upload form and upload to S3</label>
+                        </div>
+                        <small class="form-hint">Creates a downloadable HTML file that others can use to upload files. Automatically uploads it to your S3 bucket.</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="wizard-object-key" id="object-key-label">File/Folder Path:</label>
+                        <div class="input-with-button">
+                            <input type="text" id="wizard-object-key" name="object_key" required 
+                                   placeholder="folder/subfolder/filename.txt">
+                            <button type="button" id="browse-objects-btn" class="btn-small">
+                                Browse
+                            </button>
+                        </div>
+                        <small class="form-hint" id="object-key-hint">Browse to select a file for download or folder for upload</small>
+                    </div>
+                    
+                    <!-- Expiration and Content-Type side by side -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="wizard-expiration">Expiration Time (seconds):</label>
+                            <select id="wizard-expiration" name="expiration">
+                                <option value="300">5 minutes</option>
+                                <option value="900">15 minutes</option>
+                                <option value="1800" selected>30 minutes</option>
+                                <option value="3600">1 hour</option>
+                                <option value="7200">2 hours</option>
+                                <option value="21600">6 hours</option>
+                                <option value="43200">12 hours</option>
+                                <option value="86400">24 hours</option>
+                                <option value="604800">7 days</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                            <input type="number" id="wizard-expiration-custom" name="expiration_custom" 
+                                   placeholder="Enter seconds" style="display: none; margin-top: 10px;">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="wizard-content-type">Content-Type (Optional):</label>
+                            <select id="wizard-content-type" name="content_type">
+                                <option value="">Auto-detect</option>
+                                <option value="text/plain">Text (.txt)</option>
+                                <option value="text/csv">CSV (.csv)</option>
+                                <option value="application/json">JSON (.json)</option>
+                                <option value="application/xml">XML (.xml)</option>
+                                <option value="image/jpeg">JPEG Image</option>
+                                <option value="image/png">PNG Image</option>
+                                <option value="image/gif">GIF Image</option>
+                                <option value="application/pdf">PDF Document</option>
+                                <option value="application/zip">ZIP Archive</option>
+                                <option value="video/mp4">MP4 Video</option>
+                                <option value="audio/mpeg">MP3 Audio</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                            <input type="text" id="wizard-content-type-custom" name="content_type_custom" 
+                                   placeholder="Enter MIME type" style="display: none; margin-top: 10px;">
+                        </div>
+                    </div>
+                    
+                    <div class="wizard-navigation">
+                        <button type="button" class="btn btn-secondary" onclick="previousStep()">Previous</button>
+                        <button type="button" class="btn" onclick="generatePresignedUrl()">Generate URL</button>
+                    </div>
+                </div>
+
+                <!-- Step 3b: Extension Rename Configuration -->
+                <div class="wizard-step" id="step-3-rename">
+                    <h3>Step 3: Extension Rename Configuration</h3>
+                    
+                    <div class="form-group">
+                        <label for="wizard-rename-bucket">S3 Bucket Name:</label>
+                        <div class="input-with-button">
+                            <input type="text" id="wizard-rename-bucket" name="rename_bucket" required 
+                                   placeholder="my-bucket-name">
+                            <button type="button" id="browse-rename-buckets-btn" class="btn-small">
+                                Browse
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="wizard-rename-prefix">Root Folder (Prefix):</label>
+                        <div class="input-with-button">
+                            <input type="text" id="wizard-rename-prefix" name="rename_prefix" 
+                                   placeholder="folder/subfolder/ (optional)">
+                            <button type="button" id="wizard-browse-btn" class="btn-small">
+                                Browse
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="wizard-old-ext">Current Extension:</label>
+                        <input type="text" id="wizard-old-ext" name="old_ext" required 
+                               placeholder=".txt" value=".">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="wizard-new-ext">New Extension:</label>
+                        <input type="text" id="wizard-new-ext" name="new_ext" required 
+                               placeholder=".bak" value=".">
+                    </div>
+                    
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="wizard-keep-original" name="keep_original">
+                        <label for="wizard-keep-original">Keep original files (creates copies instead of renaming)</label>
+                    </div>
+                    
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="wizard-recursive" name="recursive" checked>
+                        <label for="wizard-recursive">Scan subfolders recursively</label>
+                    </div>
+                    
+                    <div class="wizard-navigation">
+                        <button type="button" class="btn btn-secondary" onclick="previousStep()">Previous</button>
+                        <button type="button" class="btn" onclick="previewExtensionRename()">Preview Changes</button>
+                    </div>
+                </div>
+
+                <!-- Step 3c: URL Parser Configuration -->
+                <div class="wizard-step" id="step-3-parser">
+                    <h3>Step 3: Parse Presigned URL</h3>
+                    <p>Paste any S3 presigned URL to analyze its expiration information</p>
+                    
+                    <div class="form-group">
+                        <label for="parser-url">Presigned URL:</label>
+                        <textarea id="parser-url" name="parser_url" rows="4" 
+                                  placeholder="Paste your S3 presigned URL here..."></textarea>
+                        <small class="form-hint">Paste the complete URL including all parameters</small>
+                    </div>
+                    
+                    <div class="wizard-navigation">
+                        <button type="button" class="btn btn-secondary" onclick="previousStep()">Previous</button>
+                        <button type="button" class="btn" onclick="parsePresignedUrl()">Parse URL</button>
+                    </div>
+                </div>
+
+                <!-- Step 3d: File Browser -->
+                <div class="wizard-step" id="step-3-filebrowser">
+                    <h3>Step 3: S3 File Manager</h3>
+                    <p>Manage files and verify uploads in your S3 bucket</p>
+                    
+                    <div class="form-group">
+                        <label for="filebrowser-bucket-select">Select S3 Bucket:</label>
+                        <select id="filebrowser-bucket-select" name="filebrowser_bucket_select" style="width: 100%;">
+                            <option value="">Choose a bucket...</option>
+                        </select>
+                        <small class="form-hint">Select the S3 bucket to manage</small>
+                    </div>
+                    
+                    <!-- File Manager Options -->
+                    <div class="file-manager-options" style="margin-top: 30px;">
+                        <div class="option-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+                            <div class="option-card" id="browse-files-option">
+                                <div class="option-icon">📁</div>
+                                <h4>Browse Files</h4>
+                                <p>Navigate and manage files and folders in your bucket</p>
+                            </div>
+                            <div class="option-card" id="verify-upload-option">
+                                <div class="option-icon">✅</div>
+                                <h4>Verify Upload</h4>
+                                <p>Load an upload results JSON to verify files exist and sizes match</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="wizard-navigation">
+                        <button type="button" class="btn btn-secondary" onclick="previousStep()">Previous</button>
+                    </div>
+                </div>
+
+                <!-- Step 4: Results -->
+                <div class="wizard-step" id="step-4">
+                    <h3 id="results-title">Step 4: Results</h3>
+                    <div id="wizard-results">
+                        <!-- Results will be populated here -->
+                    </div>
+                    
+                    <div class="wizard-navigation">
+                        <button type="button" class="btn btn-secondary" onclick="resetWizard()">Start Over</button>
+                    </div>
+                </div>
+        </div>
+        
+        <!-- Bucket Browser Modal -->
+        <div id="bucketBrowser" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Browse S3 Buckets</h3>
+                    <span class="close" id="closeBucketBrowser">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div class="search-container" style="margin-bottom: 15px; display: none;" id="bucketSearchContainer">
+                        <input type="text" id="bucketSearchInput" placeholder="Search buckets..." 
+                               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                    <div id="bucketBrowserContent">
+                        <div class="browser-loading">Click Browse to load available buckets...</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="selectBucket" class="btn">Select This Bucket</button>
+                    <button type="button" id="cancelBucketBrowser" class="btn" style="background: #6c757d;">Cancel</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Object Browser Modal -->
+        <div id="objectBrowser" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Browse S3 Objects</h3>
+                    <span class="close" id="closeObjectBrowser">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div id="currentObjectPath">Current path: <strong>/</strong></div>
+                    <div id="objectBrowserContent">
+                        <div class="browser-loading">Enter bucket name first or click Browse to load contents...</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="selectObject" class="btn">Select This Path</button>
+                    <button type="button" id="cancelObjectBrowser" class="btn" style="background: #6c757d;">Cancel</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- HTML Preview Modal -->
+        <div id="htmlPreviewModal" class="modal" style="display: none;">
+            <div class="modal-content" style="width: 90%; max-width: 1000px;">
+                <div class="modal-header">
+                    <h3>HTML Form Preview</h3>
+                    <span class="close" id="closeHtmlPreview">&times;</span>
+                </div>
+                <div class="modal-body" style="padding: 0; max-height: 70vh;">
+                    <iframe id="htmlPreviewFrame" style="width: 100%; height: 60vh; border: none; border-radius: 0 0 15px 15px;"></iframe>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="closeHtmlPreviewBtn" class="btn" style="background: #6c757d;">Close Preview</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- File Browser Modal -->
+        <div id="fileBrowserModal" class="modal" style="display: none;">
+            <div class="modal-content" style="width: 90%; max-width: 1200px; height: 85vh;">
+                <div class="modal-header">
+                    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                        <div>
+                            <h3 style="margin: 0;">S3 File Browser</h3>
+                            <div id="fileBrowserPath" style="font-size: 14px; opacity: 0.8; margin-top: 3px; font-family: 'Consolas', 'Monaco', 'Courier New', monospace;">
+                                <span id="currentBucket">-</span> : <span id="currentPath">/</span>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <button type="button" class="btn-minimal" id="exitApplicationBtn">
+                                🚪 Exit
+                            </button>
+                            <button type="button" class="btn-minimal" id="refreshBrowser">
+                                🔄 Refresh
+                            </button>
+                            <span class="close" id="closeFileBrowser">&times;</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-body" style="display: flex; flex-direction: column; height: calc(100% - 80px); padding: 15px;">
+                    <!-- Selection Info -->
+                    <div id="selectionInfo" class="selection-bar" style="display: flex; margin-bottom: 10px; padding: 10px; background: #e3f2fd; border-radius: 6px; justify-content: space-between; align-items: center;">
+                        <span id="selectionCount">0 items selected</span>
+                        <div class="selection-actions" style="display: flex; gap: 8px;">
+                            <button type="button" class="btn-round" id="selectAllBtn" title="Select All">
+                                ☑️
+                            </button>
+                            <button type="button" class="btn-round" id="clearSelectionBtn" title="Clear Selection">
+                                ❌
+                            </button>
+                            <button type="button" class="btn-round" id="downloadSelectedBtn" disabled title="Download Selected">
+                                💾
+                            </button>
+                            <button type="button" class="btn-round danger" id="deleteSelectedBtn" disabled title="Delete Selected">
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- File Browser Content -->
+                    <div class="file-browser-content-regular" id="fileBrowserList" style="flex: 1; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; background: white;">
+                        <div class="browser-loading">Select a bucket to browse files...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Upload Verification Modal -->
+        <div id="uploadVerificationModal" class="modal" style="display: none;">
+            <div class="modal-content" style="width: 90%; max-width: 1000px; height: 85vh;">
+                <div class="modal-header">
+                    <h3>Upload Verification</h3>
+                    <span class="close" id="closeUploadVerification">&times;</span>
+                </div>
+                <div class="modal-body" style="display: flex; flex-direction: column; height: calc(100% - 80px); padding: 20px;">
+                    <!-- JSON Upload Section -->
+                    <div class="json-upload-section-compact" style="flex-wrap: wrap;">
+                        <div style="display: flex; gap: 15px; align-items: end; margin-bottom: 15px; flex-wrap: wrap;">
+                            <div style="flex: 1; min-width: 250px;">
+                                <label for="jsonFileInput" style="font-size: 14px; margin-bottom: 5px;">Upload Results JSON:</label>
+                                <input type="file" id="jsonFileInput" accept=".json" style="width: 100%; padding: 8px; border: 2px dashed #ccc; border-radius: 6px; font-size: 14px;">
+                            </div>
+                            <button type="button" class="btn" id="verifyUploadBtn" disabled style="padding: 8px 20px; margin: 0;">
+                                Verify Files
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Verification Results -->
+                    <div id="verificationResults" style="flex: 1; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; padding: 10px; display: none;">
+                        <!-- Results will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Create Folder Modal -->
+        <div id="createFolderModal" class="modal" style="display: none;">
+            <div class="modal-content" style="width: 400px;">
+                <div class="modal-header">
+                    <h3>Create New Folder</h3>
+                    <span class="close" id="closeCreateFolder">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="newFolderName">Folder Name:</label>
+                        <input type="text" id="newFolderName" placeholder="Enter folder name" 
+                               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <small class="form-hint">Folder name should not contain special characters</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="confirmCreateFolder" class="btn">Create Folder</button>
+                    <button type="button" id="cancelCreateFolder" class="btn" style="background: #6c757d;">Cancel</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Confirm Delete Modal -->
+        <div id="confirmDeleteModal" class="modal" style="display: none;">
+            <div class="modal-content" style="width: 500px;">
+                <div class="modal-header">
+                    <h3>Confirm Deletion</h3>
+                    <span class="close" id="closeConfirmDelete">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div style="color: #dc3545; margin-bottom: 15px;">
+                        ⚠️ <strong>Warning:</strong> This action cannot be undone!
+                    </div>
+                    <p>Are you sure you want to delete the following items?</p>
+                    <div id="deleteItemsList" style="max-height: 200px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 4px; margin: 10px 0;">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="confirmDeleteBtn" class="btn" style="background: #dc3545;">Delete</button>
+                    <button type="button" id="cancelDeleteBtn" class="btn" style="background: #6c757d;">Cancel</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Context Menu -->
+        <div id="contextMenu" class="context-menu">
+            <div class="context-menu-item" id="contextDownload">💾 Download</div>
+            <div class="context-menu-item" id="contextDelete">🗑️ Delete</div>
+            <div class="context-menu-item" id="contextNewFolder">📁 New Folder</div>
+        </div>
+    </div>
+
+    <!-- jQuery and Select2 JS -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+        let currentStep = 1;
+        let selectedAction = null;
+        let countdownIntervals = [];
+        let previewFiles = [];
+        let currentObjectPrefix = '';
+        let selectedBucket = '';
+
+        // Wizard navigation
+        function nextStep() {
+            console.log('=== nextStep() START ===');
+            console.log('currentStep:', currentStep);
+            console.log('selectedAction:', selectedAction);
+            console.log('currentStep < 4:', currentStep < 4);
+            
+            if (currentStep < 4) {
+                console.log('Passed currentStep < 4 check');
+                
+                // Validate current step
+                if (currentStep === 1 && !selectedAction) {
+                    console.log('Failed: currentStep === 1 && !selectedAction');
+                    alert('Please select an action to continue');
+                    return;
+                }
+                
+                
+                console.log('Passed step 1 validation');
+                
+                if (currentStep === 2) {
+                    console.log('currentStep === 2, checking validateCredentials()');
+                    const credentialsValid = validateCredentials();
+                    console.log('validateCredentials() returned:', credentialsValid);
+                    if (!credentialsValid) {
+                        console.log('Failed: validateCredentials() returned false');
+                        return;
+                    }
+                }
+                console.log('Passed step 2 validation');
+                
+                // Remove active class from current step (handle special step-3 variations)
+                console.log('About to remove active class from step:', currentStep);
+                if (currentStep === 3) {
+                    // For step 3, we need to remove from the specific variant that's active
+                    console.log('Removing active from step-3 variants');
+                    document.getElementById('step-3-presigned')?.classList.remove('active');
+                    document.getElementById('step-3-rename')?.classList.remove('active');
+                    document.getElementById('step-3-parser')?.classList.remove('active');
+                    document.getElementById('step-3-filebrowser')?.classList.remove('active');
+                } else {
+                    const currentStepElement = document.getElementById(`step-${currentStep}`);
+                    console.log('Current step element:', currentStepElement);
+                    if (currentStepElement) {
+                        currentStepElement.classList.remove('active');
+                        console.log('Removed active class from step-' + currentStep);
+                    } else {
+                        console.error('Step element not found: step-' + currentStep);
+                    }
+                }
+                
+                // Handle special routing based on selected action
+                if (currentStep === 1) {
+                    if (selectedAction === 'parser') {
+                        // URL parser doesn't need credentials, skip to step 3
+                        currentStep = 3;
+                        document.getElementById('step-3-parser').classList.add('active');
+                        updateStepTitle('URL Parser');
+                    } else {
+                        // All other actions need credentials
+                        currentStep = 2;
+                        document.getElementById('step-2').classList.add('active');
+                        
+                        // Update credentials button text based on action
+                        const credentialsNext = document.getElementById('credentials-next');
+                        if (selectedAction === 'presigned') {
+                            credentialsNext.textContent = 'Next: Configure URLs';
+                        } else if (selectedAction === 'rename') {
+                            credentialsNext.textContent = 'Next: Configure Rename';
+                        } else if (selectedAction === 'filebrowser') {
+                            credentialsNext.textContent = 'Next: File Browser';
+                        }
+                    }
+                } else if (currentStep === 2) {
+                    // From credentials to configuration
+                    if (selectedAction === 'presigned') {
+                        currentStep = 3;
+                        document.getElementById('step-3-presigned').classList.add('active');
+                        updateStepTitle('Presigned URL Configuration');
+                    } else if (selectedAction === 'rename') {
+                        currentStep = 3;
+                        document.getElementById('step-3-rename').classList.add('active');
+                        updateStepTitle('Extension Rename Configuration');
+                        // Copy credentials to rename form
+                        copyCredentialsToRenameForm();
+                    } else if (selectedAction === 'filebrowser') {
+                        currentStep = 3;
+                        document.getElementById('step-3-filebrowser').classList.add('active');
+                        updateStepTitle('File Browser Configuration');
+                        // Copy credentials to file browser form
+                        copyCredentialsToFileBrowserForm();
+                    }
+                } else {
+                    // Normal step progression
+                    console.log('Normal step progression from step', currentStep, 'to step', currentStep + 1);
+                    currentStep++;
+                    console.log('Looking for step element:', `step-${currentStep}`);
+                    const stepElement = document.getElementById(`step-${currentStep}`);
+                    console.log('Found step element:', stepElement);
+                    if (stepElement) {
+                        stepElement.classList.add('active');
+                        console.log('Added active class to step', currentStep);
+                    } else {
+                        console.error('Step element not found:', `step-${currentStep}`);
+                    }
+                }
+                console.log('About to call updateProgress()');
+                updateProgress();
+                console.log('updateProgress() completed');
+            }
+        }
+
+        function updateStepTitle(title) {
+            const stepTitleElement = document.getElementById('step-3-title');
+            if (stepTitleElement) {
+                stepTitleElement.textContent = title;
+            }
+        }
+
+        function previousStep() {
+            if (currentStep > 1) {
+                // Hide current step
+                if (currentStep === 3) {
+                    document.getElementById('step-3-presigned').classList.remove('active');
+                    document.getElementById('step-3-rename').classList.remove('active');
+                    document.getElementById('step-3-parser').classList.remove('active');
+                    document.getElementById('step-3-filebrowser').classList.remove('active');
+                    
+                    // Special routing: if parser was selected and we're at step 3, go back to step 1
+                    if (selectedAction === 'parser') {
+                        currentStep = 1;
+                    } else {
+                        currentStep = 2; // Go back to credentials for other actions
+                    }
+                } else {
+                    document.getElementById(`step-${currentStep}`).classList.remove('active');
+                    currentStep--;
+                }
+                
+                document.getElementById(`step-${currentStep}`).classList.add('active');
+                updateProgress();
+            }
+        }
+
+        function copyCredentialsToRenameForm() {
+            // Copy credentials from main form to rename form
+            document.getElementById('wizard-rename-bucket').value = document.getElementById('wizard-access-key').value ? '' : '';
+        }
+
+        // Test connection functionality (will be initialized in DOMContentLoaded)
+        function initializeTestConnection() {
+            const btn = document.getElementById('wizard-test-connection-btn');
+            if (!btn) return;
+            
+            btn.addEventListener('click', function() {
+                const statusDiv = document.getElementById('wizard-connection-status');
+                
+                // Get form values
+                const accessKey = document.getElementById('wizard-access-key').value;
+                const secretKey = document.getElementById('wizard-secret-key').value;
+                const sessionToken = document.getElementById('wizard-session-token').value;
+                const region = document.getElementById('wizard-region').value;
+                const bucket = document.getElementById('wizard-bucket') ? document.getElementById('wizard-bucket').value : '';
+                
+                // Validate required fields
+                if (!accessKey || !secretKey) {
+                    statusDiv.innerHTML = '<div class="error-message">Please fill in Access Key and Secret Key first.</div>';
+                    return;
+                }
+                
+                // Show loading state
+                btn.innerHTML = '<span class="loading"></span>Testing...';
+                btn.disabled = true;
+                statusDiv.innerHTML = '';
+                
+                // Make AJAX request with bucket info for region checking
+                fetch('/test-connection', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        access_key: accessKey,
+                        secret_key: secretKey,
+                        session_token: sessionToken,
+                        region: region,
+                        bucket: bucket,
+                        check_region: true // New flag to check bucket region
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        let message = data.message;
+                        let messageClass = 'success-message';
+                        
+                        // Check for region mismatch warning
+                        if (data.region_mismatch) {
+                            message += `<br><strong>⚠️ Region Warning:</strong> Bucket "${bucket}" is in region "${data.bucket_region}" but you selected "${region}". Consider updating your region selection.`;
+                            messageClass = 'warning-message';
+                        }
+                        
+                        statusDiv.innerHTML = `<div class="${messageClass}" style="margin: 10px 0; padding: 10px;">${message}</div>`;
+                        
+                        // Save credentials if checkbox is checked
+                        if (document.getElementById('wizard-save-credentials').checked) {
+                            saveCredentialsToSession();
+                        }
+                    } else {
+                        statusDiv.innerHTML = '<div class="error-message" style="margin: 10px 0;">' + data.message + '</div>';
+                    }
+                })
+                .catch(error => {
+                    statusDiv.innerHTML = '<div class="error-message" style="margin: 10px 0;">Connection test failed: ' + error.message + '</div>';
+                })
+                .finally(() => {
+                    // Reset button
+                    btn.innerHTML = 'Test Connection';
+                    btn.disabled = false;
+                });
+            });
+        }
+
+        // Credential storage functions
+        function saveCredentialsToSession() {
+            try {
+                const credentials = {
+                    access_key: btoa(document.getElementById('wizard-access-key').value), // Simple encoding
+                    secret_key: btoa(document.getElementById('wizard-secret-key').value),
+                    session_token: btoa(document.getElementById('wizard-session-token').value || ''),
+                    region: document.getElementById('wizard-region').value,
+                    timestamp: Date.now()
+                };
+                
+                sessionStorage.setItem('aws_credentials', JSON.stringify(credentials));
+                console.log('Credentials saved for this session');
+            } catch (error) {
+                console.error('Error saving credentials:', error);
+            }
+        }
+
+        function loadCredentialsFromSession() {
+            try {
+                const saved = sessionStorage.getItem('aws_credentials');
+                if (saved) {
+                    const credentials = JSON.parse(saved);
+                    
+                    // Check if not too old (1 hour max)
+                    if (Date.now() - credentials.timestamp < 3600000) {
+                        document.getElementById('wizard-access-key').value = atob(credentials.access_key);
+                        document.getElementById('wizard-secret-key').value = atob(credentials.secret_key);
+                        document.getElementById('wizard-session-token').value = atob(credentials.session_token);
+                        document.getElementById('wizard-region').value = credentials.region;
+                        document.getElementById('wizard-save-credentials').checked = true;
+                        console.log('Credentials loaded from session');
+                    } else {
+                        // Remove expired credentials
+                        sessionStorage.removeItem('aws_credentials');
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading credentials:', error);
+                sessionStorage.removeItem('aws_credentials');
+            }
+        }
+
+        // URL Parser functionality
+        function parsePresignedUrl() {
+            const url = document.getElementById('parser-url').value.trim();
+            
+            if (!url) {
+                alert('Please enter a URL to parse');
+                return;
+            }
+
+            const resultsDiv = document.getElementById('wizard-results');
+            resultsDiv.innerHTML = '<div class="loading-spinner">Parsing URL...</div>';
+            document.getElementById('results-title').textContent = 'Step 4: URL Analysis Results';
+
+            fetch('/parse-presigned-url', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ url: url })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    displayUrlParseResults(data);
+                    // Force step transition
+                    document.getElementById('step-3-parser').classList.remove('active');
+                    currentStep = 4;
+                    document.getElementById('step-4').classList.add('active');
+                    updateProgress();
+                } else {
+                    resultsDiv.innerHTML = `<div class="error-message">${data.message}</div>`;
+                }
+            })
+            .catch(error => {
+                resultsDiv.innerHTML = `<div class="error-message">Error: ${error.message}</div>`;
+            });
+        }
+
+        function displayUrlParseResults(data) {
+            const resultsDiv = document.getElementById('wizard-results');
+            const issuedAt = new Date(data.issued_at);
+            const expiresAt = new Date(data.expires_at);
+            const isExpired = data.is_expired;
+            
+            resultsDiv.innerHTML = `
+                <div class="results-container">
+                    <div class="result-header">
+                        <h4>🔍 URL Analysis Complete</h4>
+                        <small>Presigned URL information extracted and analyzed</small>
+                    </div>
+                    
+                    <div class="time-info">
+                        <div class="time-row">
+                            <span class="time-label">Issued at:</span>
+                            <span class="time-value">${issuedAt.toLocaleString()}</span>
+                            <button onclick="copyToClipboard('${issuedAt.toISOString()}', this)" class="copy-btn-small">Copy</button>
+                        </div>
+                        <div class="time-row">
+                            <span class="time-label">Expires at:</span>
+                            <span class="time-value">${expiresAt.toLocaleString()}</span>
+                            <button onclick="copyToClipboard('${expiresAt.toISOString()}', this)" class="copy-btn-small">Copy</button>
+                        </div>
+                        <div class="time-row">
+                            <span class="time-label">Status:</span>
+                            <span class="time-value ${isExpired ? 'expired' : 'valid'}">${isExpired ? 'EXPIRED' : 'VALID'}</span>
+                        </div>
+                        ${!isExpired ? `
+                        <div class="time-row">
+                            <span class="time-label">Time remaining:</span>
+                            <span id="parse-countdown-${Date.now()}" class="countdown"></span>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+            
+            // Start countdown if not expired
+            if (!isExpired) {
+                startCountdown(`parse-countdown-${Date.now()}`, expiresAt);
+            }
+        }
+
+        function updateProgress() {
+            // Hide/show step 4 based on selected action
+            const step4Indicator = document.getElementById('step-4-indicator');
+            if (selectedAction === 'filebrowser') {
+                step4Indicator.style.display = 'none';
+                document.getElementById('step-3-title').textContent = 'File Manager';
+            } else {
+                step4Indicator.style.display = 'flex';
+                // Update step 3 title based on action
+                if (selectedAction === 'presigned') {
+                    document.getElementById('step-3-title').textContent = 'Configuration';
+                } else if (selectedAction === 'rename') {
+                    document.getElementById('step-3-title').textContent = 'Configuration';
+                } else if (selectedAction === 'parser') {
+                    document.getElementById('step-3-title').textContent = 'URL Parser';
+                } else {
+                    document.getElementById('step-3-title').textContent = 'Configuration';
+                }
+            }
+            
+            document.querySelectorAll('.step').forEach((step, index) => {
+                const stepNum = index + 1;
+                
+                // Skip hidden steps
+                if (step.style.display === 'none') return;
+                
+                if (stepNum < currentStep) {
+                    step.classList.add('completed');
+                    step.classList.remove('active');
+                } else if (stepNum === currentStep) {
+                    step.classList.add('active');
+                    step.classList.remove('completed');
+                } else {
+                    step.classList.remove('active', 'completed');
+                }
+            });
+        }
+
+        function validateCredentials() {
+            const accessKey = document.getElementById('wizard-access-key').value;
+            const secretKey = document.getElementById('wizard-secret-key').value;
+            const region = document.getElementById('wizard-region').value;
+            
+            if (!accessKey || !secretKey || !region) {
+                alert('Please fill in all required credential fields');
+                return false;
+            }
+            return true;
+        }
+
+        // Action selection
+        document.querySelectorAll('.action-card').forEach(card => {
+            card.addEventListener('click', function() {
+                document.querySelectorAll('.action-card').forEach(c => c.classList.remove('selected'));
+                this.classList.add('selected');
+                selectedAction = this.getAttribute('data-action');
+                
+                const nextButton = document.getElementById('action-next');
+                nextButton.disabled = false;
+                
+                // Update button text based on selected action
+                switch(selectedAction) {
+                    case 'presigned':
+                        nextButton.textContent = 'Next: Enter Credentials';
+                        break;
+                    case 'parser':
+                        nextButton.textContent = 'Next: Parse URL';
+                        break;
+                    case 'rename':
+                        nextButton.textContent = 'Next: Enter Credentials';
+                        break;
+                    case 'filebrowser':
+                        nextButton.textContent = 'Next: Enter Credentials';
+                        break;
+                    default:
+                        nextButton.textContent = 'Next: Enter Credentials';
+                }
+            });
+            
+            // Add double-click functionality to automatically proceed
+            card.addEventListener('dblclick', function() {
+                if (selectedAction === this.getAttribute('data-action')) {
+                    nextStep();
+                }
+            });
+        });
+
+        // Custom expiration handling
+        document.getElementById('wizard-expiration').addEventListener('change', function() {
+            const customInput = document.getElementById('wizard-expiration-custom');
+            if (this.value === 'custom') {
+                customInput.style.display = 'block';
+                customInput.required = true;
+            } else {
+                customInput.style.display = 'none';
+                customInput.required = false;
+            }
+        });
+
+        // Custom content-type handling
+        document.getElementById('wizard-content-type').addEventListener('change', function() {
+            const customInput = document.getElementById('wizard-content-type-custom');
+            if (this.value === 'custom') {
+                customInput.style.display = 'block';
+                customInput.required = true;
+            } else {
+                customInput.style.display = 'none';
+                customInput.required = false;
+            }
+        });
+
+
+        // URL type handling
+        function selectUrlType(type) {
+            // Update toggle button states
+            document.querySelectorAll('.toggle-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-value="${type}"]`).classList.add('active');
+            
+            // Update hidden input
+            document.getElementById('wizard-url-type').value = type;
+            
+            // Update hints, visibility, and labels
+            const hintElement = document.getElementById('object-key-hint');
+            const objectKeyInput = document.getElementById('wizard-object-key');
+            const objectKeyLabel = document.getElementById('object-key-label');
+            const uploadOptions = document.getElementById('upload-options');
+            
+            if (type === 'upload') {
+                objectKeyLabel.textContent = 'Folder Path:';
+                hintElement.textContent = 'Browse to select a folder for upload or enter the path where files will be uploaded';
+                objectKeyInput.placeholder = 'folder/subfolder/ (for upload destination)';
+                uploadOptions.style.display = 'block';
+            } else {
+                objectKeyLabel.textContent = 'File/Folder Path:';
+                hintElement.textContent = 'Browse to select a specific file to download';
+                objectKeyInput.placeholder = 'folder/subfolder/filename.ext (file to download)';
+                uploadOptions.style.display = 'none';
+            }
+        }
+
+        // Initialize the upload options visibility on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const uploadOptions = document.getElementById('upload-options');
+            
+            // Show upload options by default since upload is selected by default
+            if (uploadOptions) {
+                uploadOptions.style.display = 'block';
+            }
+            
+            // Update credential storage hint based on environment
+            updateCredentialStorageHint();
+            
+            // Load saved credentials
+            loadCredentialsFromSession();
+            
+            // Initialize test connection functionality
+            initializeTestConnection();
+        });
+        
+        function updateCredentialStorageHint() {
+            const hintElements = document.querySelectorAll('.form-hint');
+            const isPyWebView = !!window.pywebview;
+            
+            hintElements.forEach(hint => {
+                if (hint.textContent.includes('Credentials will be cleared')) {
+                    if (isPyWebView) {
+                        hint.textContent = 'Credentials will be cleared when you close the desktop app';
+                    } else {
+                        hint.textContent = 'Credentials stored in browser session - cleared when tab/browser is closed';
+                    }
+                }
+            });
+        }
+
+        // Generate presigned URL
+        function generatePresignedUrl() {
+            console.log('generatePresignedUrl function called');
+            
+            let formData;
+            try {
+                const urlType = document.getElementById('wizard-url-type').value;
+                console.log('URL type:', urlType);
+                
+                formData = {
+                    access_key: document.getElementById('wizard-access-key').value,
+                    secret_key: document.getElementById('wizard-secret-key').value,
+                    session_token: document.getElementById('wizard-session-token').value,
+                    region: document.getElementById('wizard-region').value,
+                    bucket: document.getElementById('wizard-bucket').value,
+                    object_key: document.getElementById('wizard-object-key').value || "",  // Allow empty for root
+                    url_type: urlType,
+                    expiration: getExpirationValue(),
+                    content_type: getContentTypeValue()
+                };
+                
+                // Add generate_html parameter for upload URLs
+                if (urlType === 'upload') {
+                    const htmlCheckbox = document.getElementById('wizard-generate-html');
+                    console.log('HTML checkbox element:', htmlCheckbox);
+                    
+                    if (htmlCheckbox) {
+                        formData.generate_html = htmlCheckbox.checked;
+                        formData.upload_html = htmlCheckbox.checked; // Always upload to S3 when generating HTML
+                        console.log('Generate HTML checkbox checked:', formData.generate_html);
+                        console.log('Upload HTML automatically enabled:', formData.upload_html);
+                        
+                    } else {
+                        console.error('HTML checkbox element not found!');
+                        formData.generate_html = false;
+                        formData.upload_html = false;
+                    }
+                }
+
+                if (!formData.access_key || !formData.secret_key) {
+                    alert('Please fill in all required credentials');
+                    return;
+                }
+                
+                // For download URLs, object_key is required
+                if (urlType === 'download' && !formData.object_key) {
+                    alert('Please specify a file path for download');
+                    return;
+                }
+                
+                // For upload URLs, object_key can be empty (root folder)
+
+                console.log('Form data being sent:', formData);
+            } catch (error) {
+                console.error('Error in generatePresignedUrl setup:', error);
+                alert('Error preparing form data: ' + error.message);
+                return;
+            }
+
+            const resultsDiv = document.getElementById('wizard-results');
+            resultsDiv.innerHTML = '<div class="loading-spinner">Generating presigned URLs...</div>';
+            document.getElementById('results-title').textContent = 'Step 4: Your Presigned URLs';
+
+            console.log('About to send fetch request...');
+            
+            fetch('/generate-presigned-url', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => {
+                console.log('Fetch response received:', response);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Presigned URL response:', data);
+                if (data.success) {
+                    console.log('HTML form included:', !!data.html_form);
+                    displayPresignedResults(data);
+                    // Force step transition
+                    document.getElementById('step-3-presigned').classList.remove('active');
+                    currentStep = 4;
+                    document.getElementById('step-4').classList.add('active');
+                    updateProgress();
+                } else {
+                    console.error('Server returned error:', data.message);
+                    resultsDiv.innerHTML = `<div class="error-message">${data.message}</div>`;
+                }
+            })
+            .catch(error => {
+                console.error('Error generating presigned URL:', error);
+                resultsDiv.innerHTML = `<div class="error-message">Error: ${error.message}</div>`;
+            });
+        }
+
+        function getExpirationValue() {
+            try {
+                const select = document.getElementById('wizard-expiration');
+                const customInput = document.getElementById('wizard-expiration-custom');
+                
+                if (!select) {
+                    console.error('Expiration select element not found');
+                    return 3600;
+                }
+                
+                if (select.value === 'custom') {
+                    return parseInt(customInput?.value) || 3600;
+                } else {
+                    return parseInt(select.value) || 3600;
+                }
+            } catch (error) {
+                console.error('Error getting expiration value:', error);
+                return 3600;
+            }
+        }
+
+        function getContentTypeValue() {
+            try {
+                const select = document.getElementById('wizard-content-type');
+                const customInput = document.getElementById('wizard-content-type-custom');
+                
+                if (!select) {
+                    console.error('Content-type select element not found');
+                    return null;
+                }
+                
+                if (select.value === 'custom') {
+                    return customInput?.value || null;
+                } else {
+                    return select.value || null;
+                }
+            } catch (error) {
+                console.error('Error getting content-type value:', error);
+                return null;
+            }
+        }
+
+        // Extension rename functionality
+        function previewExtensionRename() {
+            console.log('previewExtensionRename function called');
+            
+            const formData = {
+                access_key: document.getElementById('wizard-access-key').value,
+                secret_key: document.getElementById('wizard-secret-key').value,
+                bucket: document.getElementById('wizard-rename-bucket').value,
+                prefix: document.getElementById('wizard-rename-prefix').value,
+                old_ext: document.getElementById('wizard-old-ext').value,
+                new_ext: document.getElementById('wizard-new-ext').value,
+                keep_original: document.getElementById('wizard-keep-original').checked,
+                recursive: document.getElementById('wizard-recursive').checked
+            };
+
+            console.log('Form data collected:', formData);
+
+            if (!formData.access_key || !formData.secret_key || !formData.bucket || !formData.old_ext || !formData.new_ext) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
+            const resultsDiv = document.getElementById('wizard-results');
+            resultsDiv.innerHTML = '<div class="loading-spinner">Finding files to rename...</div>';
+            document.getElementById('results-title').textContent = 'Step 4: Preview Changes';
+
+            console.log('About to make request to /wizard/extension-renamer');
+
+            // Add session token and region from credentials step
+            const sessionToken = document.getElementById('wizard-session-token')?.value || '';
+            const region = document.getElementById('wizard-region')?.value || 'us-east-1';
+            
+            // Create JSON payload for the wizard endpoint
+            const requestData = {
+                access_key: formData.access_key,
+                secret_key: formData.secret_key,
+                session_token: sessionToken,
+                region: region,
+                bucket: formData.bucket,
+                prefix: formData.prefix || '',
+                old_ext: formData.old_ext,
+                new_ext: formData.new_ext,
+                keep_original: formData.keep_original,
+                recursive: formData.recursive
+            };
+
+            fetch('/wizard/extension-renamer', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Wizard extension renamer response:', data);
+                
+                if (data.success) {
+                    console.log('Success! Received files:', data.files.length);
+                    console.log('Files:', data.files);
+                    
+                    if (data.files.length > 0) {
+                        // Create a clean file list for wizard display
+                        let cleanFileList = '<div class="wizard-file-list">';
+                        cleanFileList += '<div class="file-selection-controls" style="margin-bottom: 15px;">';
+                        cleanFileList += '<button type="button" class="btn-small" onclick="selectAllWizardFiles()">Select All</button> ';
+                        cleanFileList += '<button type="button" class="btn-small" onclick="deselectAllWizardFiles()">Deselect All</button> ';
+                        cleanFileList += '<span id="wizardSelectionCount">' + data.files.length + ' of ' + data.files.length + ' files selected</span>';
+                        cleanFileList += '</div>';
+                        
+                        data.files.forEach((fileName, index) => {
+                            cleanFileList += `<div class="wizard-file-item">`;
+                            cleanFileList += `<input type="checkbox" id="wizard_file_${index}" name="wizard_selected_files" value="${fileName}" checked onchange="updateWizardSelectionCount()">`;
+                            cleanFileList += `<label for="wizard_file_${index}">${fileName}</label>`;
+                            cleanFileList += `</div>`;
+                        });
+                        cleanFileList += '</div>';
+                        
+                        console.log('About to call displayExtensionRenameResults with cleanFileList:', cleanFileList);
+                        console.log('Config data:', data.config);
+                        
+                        // Use the config from the server response to ensure consistency
+                        displayExtensionRenameResults(cleanFileList, data.config);
+                        
+                        console.log('displayExtensionRenameResults completed, calling nextStep()');
+                        nextStep();
+                    } else {
+                        console.log('No files found, but still showing results in step 4');
+                        // Still show results in step 4, but with no files message
+                        const noFilesHtml = `
+                            <div class="results-container">
+                                <div class="result-section">
+                                    <div class="info-message">
+                                        <h4>No Files Found</h4>
+                                        <p>No files found matching your criteria. Please check your settings:</p>
+                                        <ul>
+                                            <li>Make sure the bucket name is correct</li>
+                                            <li>Check if the prefix/folder path exists</li>
+                                            <li>Verify files with extension "${data.config.old_ext}" exist in the specified location</li>
+                                            <li>Ensure you have the necessary permissions to list bucket contents</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                
+                                <div class="result-section">
+                                    <h4>Configuration Used:</h4>
+                                    <div class="config-info">
+                                        <p><strong>Bucket:</strong> ${data.config.bucket}</p>
+                                        <p><strong>Prefix:</strong> ${data.config.prefix || '(root)'}</p>
+                                        <p><strong>Looking for:</strong> ${data.config.old_ext} files</p>
+                                        <p><strong>Recursive:</strong> ${data.config.recursive ? 'Yes' : 'No'}</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="wizard-navigation" style="margin-top: 20px;">
+                                    <button type="button" class="btn btn-secondary" onclick="previousStep()">
+                                        Go Back and Modify Settings
+                                    </button>
+                                    <button type="button" class="btn" onclick="resetWizard()">
+                                        Start Over
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                        
+                        displayExtensionRenameResults(noFilesHtml, data.config);
+                        nextStep();
+                    }
+                } else {
+                    resultsDiv.innerHTML = '<div class="error-message">Error: ' + data.message + '</div>';
+                }
+            })
+            .catch(error => {
+                resultsDiv.innerHTML = `<div class="error-message">Error: ${error.message}</div>`;
+            });
+        }
+
+        function displayExtensionRenameResults(previewHtml, formData) {
+            console.log('displayExtensionRenameResults called with previewHtml:', previewHtml);
+            console.log('displayExtensionRenameResults called with formData:', formData);
+            
+            const resultsDiv = document.getElementById('wizard-results');
+            console.log('Found resultsDiv:', resultsDiv);
+            
+            if (!resultsDiv) {
+                console.error('Results div not found!');
+                return;
+            }
+            
+            const resultContent = `
+                <div class="results-container">
+                    <div class="result-section">
+                        <h4>Files to be renamed:</h4>
+                        ${previewHtml}
+                    </div>
+                    
+                    <div class="result-section">
+                        <h4>Configuration:</h4>
+                        <div class="config-info">
+                            <p><strong>Bucket:</strong> ${formData.bucket}</p>
+                            <p><strong>Prefix:</strong> ${formData.prefix || '(root)'}</p>
+                            <p><strong>From:</strong> ${formData.old_ext}</p>
+                            <p><strong>To:</strong> ${formData.new_ext}</p>
+                            <p><strong>Keep originals:</strong> ${formData.keep_original ? 'Yes' : 'No'}</p>
+                            <p><strong>Recursive:</strong> ${formData.recursive ? 'Yes' : 'No'}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="wizard-navigation" style="margin-top: 20px;">
+                        <button type="button" class="btn btn-confirm" onclick="confirmExtensionRename()">
+                            Confirm Changes
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            console.log('Setting resultsDiv.innerHTML to:', resultContent);
+            resultsDiv.innerHTML = resultContent;
+            console.log('resultsDiv.innerHTML set successfully');
+            
+        // Store form data for confirmation
+        window.renameFormData = formData;
+        console.log('Stored renameFormData:', window.renameFormData);
+    }
+
+    // Wizard file selection helper functions
+    function selectAllWizardFiles() {
+        const checkboxes = document.querySelectorAll('input[name="wizard_selected_files"]');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = true;
+        });
+        updateWizardSelectionCount();
+    }
+
+    function deselectAllWizardFiles() {
+        const checkboxes = document.querySelectorAll('input[name="wizard_selected_files"]');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = false;
+        });
+        updateWizardSelectionCount();
+    }
+
+    function updateWizardSelectionCount() {
+        const checkboxes = document.querySelectorAll('input[name="wizard_selected_files"]');
+        const checkedBoxes = document.querySelectorAll('input[name="wizard_selected_files"]:checked');
+        const countElement = document.getElementById('wizardSelectionCount');
+        const executeBtn = document.getElementById('execute-rename-btn');
+        
+        if (countElement) {
+            countElement.textContent = `${checkedBoxes.length} of ${checkboxes.length} files selected`;
+        }
+        
+        if (executeBtn) {
+            if (checkedBoxes.length === 0) {
+                executeBtn.textContent = 'No Files Selected';
+                executeBtn.disabled = true;
+            } else {
+                executeBtn.textContent = `Execute Rename on ${checkedBoxes.length} Selected Files`;
+                executeBtn.disabled = false;
+            }
+        }
+    }
+
+    function confirmExtensionRename() {
+        // Get selected files
+        const selectedCheckboxes = document.querySelectorAll('input[name="wizard_selected_files"]:checked');
+        const selectedFiles = Array.from(selectedCheckboxes).map(checkbox => checkbox.value);
+        
+        if (selectedFiles.length === 0) {
+            alert('Please select at least one file to process.');
+            return;
+        }
+        
+        const confirmed = confirm(`Are you sure you want to rename ${selectedFiles.length} file(s)? This action cannot be undone easily.`);
+        if (!confirmed) {
+            return;
+        }
+        
+        // Get stored configuration and add current credentials
+        const formData = window.renameFormData;
+        const sessionToken = document.getElementById('wizard-session-token')?.value || '';
+        const region = document.getElementById('wizard-region')?.value || 'us-east-1';
+        
+        const executeData = {
+            config: {
+                access_key: document.getElementById('wizard-access-key').value,
+                secret_key: document.getElementById('wizard-secret-key').value,
+                session_token: sessionToken,
+                region: region,
+                bucket: formData.bucket,
+                old_ext: formData.old_ext,
+                new_ext: formData.new_ext,
+                keep_original: formData.keep_original
+            },
+            selected_files: selectedFiles
+        };
+        
+        // Show loading state
+        const resultsDiv = document.getElementById('wizard-results');
+        resultsDiv.innerHTML = '<div class="loading-spinner">Processing rename operation...</div>';
+        
+        // Execute the rename
+        fetch('/wizard/extension-renamer/execute', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(executeData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                let errorDetails = '';
+                if (data.errors && data.errors.length > 0) {
+                    errorDetails = '<div class="error-details" style="margin-top: 15px;"><h5>Errors encountered:</h5><ul>';
+                    data.errors.forEach(error => {
+                        errorDetails += `<li>${error}</li>`;
+                    });
+                    errorDetails += '</ul></div>';
+                }
+                
+                resultsDiv.innerHTML = `
+                    <div class="results-container">
+                        <div class="success-message">
+                            <strong>✅ Rename operation completed!</strong>
+                            <p>${data.message}</p>
+                            ${errorDetails}
+                        </div>
+                        <div class="wizard-navigation" style="margin-top: 20px;">
+                            <button type="button" class="btn" onclick="resetWizard()">
+                                Start Over
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                resultsDiv.innerHTML = `
+                    <div class="results-container">
+                        <div class="error-message">
+                            <strong>❌ Rename operation failed</strong>
+                            <p>${data.message}</p>
+                        </div>
+                        <div class="wizard-navigation" style="margin-top: 20px;">
+                            <button type="button" class="btn btn-secondary" onclick="previousStep()">
+                                Go Back
+                            </button>
+                            <button type="button" class="btn" onclick="resetWizard()">
+                                Start Over
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            resultsDiv.innerHTML = `
+                <div class="results-container">
+                    <div class="error-message">
+                        <strong>❌ Network error</strong>
+                        <p>Failed to execute rename operation: ${error.message}</p>
+                    </div>
+                    <div class="wizard-navigation" style="margin-top: 20px;">
+                        <button type="button" class="btn btn-secondary" onclick="previousStep()">
+                            Go Back
+                        </button>
+                        <button type="button" class="btn" onclick="resetWizard()">
+                            Start Over
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+        function displayPresignedResults(data) {
+            const resultsDiv = document.getElementById('wizard-results');
+            const issuedAt = new Date(data.issued_at);
+            const expiresAt = new Date(data.expires_at);
+            const urlType = data.url_type || 'upload';
+            
+            // Determine default display option
+            let defaultOption = 'put-url';
+            if (urlType === 'download') {
+                defaultOption = 'download-url';
+            } else if (data.html_form) {
+                defaultOption = 'html-form';
+            }
+            
+            // Build all sections but hide them initially
+            let allSectionsHtml = '';
+            
+            if (urlType === 'download') {
+                allSectionsHtml = `
+                    <div class="result-section" id="download-url-section">
+                        <h4>Download URL</h4>
+                        <div class="url-container">
+                            <textarea readonly class="url-text">${data.download_url}</textarea>
+                            <button onclick="copyToClipboard('${data.download_url.replace(/'/g, "\\'")}', this)" class="copy-btn">Copy</button>
+                        </div>
+                    </div>
+                    
+                    <div class="result-section" id="curl-download-section">
+                        <h4>Curl Download Command</h4>
+                        <div class="url-container">
+                            <textarea readonly class="url-text">${data.curl_download}</textarea>
+                            <button onclick="copyToClipboard('${data.curl_download.replace(/'/g, "\\'")}', this)" class="copy-btn">Copy</button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                allSectionsHtml = `
+                    <div class="result-section" id="put-url-section">
+                        <h4>PUT Upload URL (Recommended)</h4>
+                        <div class="url-container">
+                            <textarea readonly class="url-text">${data.put_url}</textarea>
+                            <button onclick="copyToClipboard('${data.put_url.replace(/'/g, "\\'")}', this)" class="copy-btn">Copy</button>
+                        </div>
+                        <div class="usage-instructions">
+                            <p><strong>⚠️ Usage Instructions:</strong></p>
+                            <ul>
+                                <li><strong>DO NOT</strong> open this URL in a browser - it will cause "SignatureDoesNotMatch" error</li>
+                                <li><strong>DO</strong> use this URL with curl, Postman, or programmatically with HTTP PUT method</li>
+                                <li>Use the curl command below for easy file upload</li>
+                                <li>Content-Type header must match if specified during URL generation</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="result-section" id="curl-put-section">
+                        <h4>Curl Command (PUT)</h4>
+                        <div class="url-container">
+                            <textarea readonly class="url-text">${data.curl_put}</textarea>
+                            <button onclick="copyToClipboard('${data.curl_put.replace(/'/g, "\\'")}', this)" class="copy-btn">Copy</button>
+                        </div>
+                    </div>
+                    
+                    <div class="result-section" id="post-url-section">
+                        <h4>POST Upload URL (Advanced)</h4>
+                        <div class="url-container">
+                            <textarea readonly class="url-text">${data.post_url}</textarea>
+                            <button onclick="copyToClipboard('${data.post_url.replace(/'/g, "\\'")}', this)" class="copy-btn">Copy</button>
+                        </div>
+                    </div>
+                    
+                    <div class="result-section" id="curl-post-section">
+                        <h4>Curl Command (POST)</h4>
+                        <div class="url-container">
+                            <textarea readonly class="url-text">${data.curl_post}</textarea>
+                            <button onclick="copyToClipboard('${data.curl_post.replace(/'/g, "\\'")}', this)" class="copy-btn">Copy</button>
+                        </div>
+                    </div>
+                `;
+                
+                // Add HTML form download section if available
+                if (data.html_form) {
+                    const encodedHtml = btoa(encodeURIComponent(data.html_form));
+                    allSectionsHtml += `
+                        <div class="result-section" id="html-form-section">
+                            <h4>📄 Share upload form</h4>
+                            <p class="form-description">Download a complete HTML file that others can use to upload files directly to S3</p>
+                            <div class="html-form-actions">
+                                <button onclick="downloadHtmlForm('${encodedHtml}', 'S3-Upload-Form.html', this)" class="copy-btn html-download-btn">
+                                    📥 Download HTML Form
+                                </button>
+                                <button onclick="previewHtmlForm('${encodedHtml}')" class="copy-btn html-preview-btn">
+                                    👁️ Preview Form
+                                </button>
+                            </div>
+                            ${data.uploaded_html_url ? `
+                            <div class="uploaded-html-info">
+                                <p class="upload-success">✅ HTML form uploaded to S3!</p>
+                                <div class="uploaded-url-section">
+                                    <label>Link to upload form:</label>
+                                    <div class="url-copy-container">
+                                        <input type="text" value="${data.uploaded_html_url}" readonly class="url-input">
+                                        <button onclick="copyToClipboard('${data.uploaded_html_url}', this)" class="copy-btn-small">Copy</button>
+                                    </div>
+                                </div>
+                                <small class="form-hint">⏰ This presigned URL expires at the same time as your upload URLs. Share this link to allow others to download the upload form.</small>
+                            </div>
+                            ` : ''}
+                            <small class="form-hint">Share this HTML file with anyone who needs to upload files to this location</small>
+                        </div>
+                    `;
+                }
+            }
+            
+            // Build dropdown options
+            let dropdownOptions = '';
+            if (urlType === 'download') {
+                dropdownOptions = `
+                    <option value="download-url">Download URL</option>
+                    <option value="curl-download">Curl Download Command</option>
+                `;
+            } else {
+                dropdownOptions = `
+                    ${data.html_form ? '<option value="html-form">Share upload form</option>' : ''}
+                    <option value="put-url" ${!data.html_form ? 'selected' : ''}>PUT Upload URL</option>
+                    <option value="curl-put">Curl PUT Command</option>
+                    <option value="post-url">POST Upload URL</option>
+                    <option value="curl-post">Curl POST Command</option>
+                `;
+            }
+            
+            resultsDiv.innerHTML = `
+                <div class="results-container">
+                    <div class="result-header">
+                        <h4>✅ ${urlType === 'download' ? 'Download' : 'Upload'} URLs Generated Successfully</h4>
+                        <small>URLs use AWS Signature Version 4 and are valid for the specified duration</small>
+                    </div>
+                    
+                    <div class="result-selector">
+                        <label for="result-type-select"><strong>Choose what to display:</strong></label>
+                        <select id="result-type-select" onchange="showSelectedResult(this.value)" style="margin-left: 10px; padding: 8px; font-size: 14px;">
+                            ${dropdownOptions}
+                        </select>
+                    </div>
+                    
+                    <div id="selected-result-container">
+                        ${allSectionsHtml}
+                    </div>
+                    
+                    <div class="time-info">
+                        <div class="time-row">
+                            <span class="time-label">Issued at:</span>
+                            <span class="time-value">${issuedAt.toLocaleString()}</span>
+                            <button onclick="copyToClipboard('${issuedAt.toISOString()}', this)" class="copy-btn-small">Copy</button>
+                        </div>
+                        <div class="time-row">
+                            <span class="time-label">Expires at:</span>
+                            <span class="time-value">${expiresAt.toLocaleString()}</span>
+                            <button onclick="copyToClipboard('${expiresAt.toISOString()}', this)" class="copy-btn-small">Copy</button>
+                        </div>
+                        <div class="time-row">
+                            <span class="time-label">Time remaining:</span>
+                            <span id="countdown-${Date.now()}" class="countdown"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="troubleshooting-info">
+                        <details>
+                            <summary>🔧 Troubleshooting</summary>
+                            <div class="troubleshooting-content">
+                                <p><strong>Common Error Solutions:</strong></p>
+                                <ul>
+                                    <li><strong>SignatureDoesNotMatch (PUT URLs):</strong> Most common cause is opening PUT URL in browser. Use curl command or proper HTTP PUT request instead.</li>
+                                    <li><strong>SignatureDoesNotMatch (General):</strong> Verify AWS credentials, check system clock accuracy, ensure region matches bucket region</li>
+                                    <li><strong>PermanentRedirect:</strong> Your bucket is in a different region than selected. Use the correct region from the error message</li>
+                                    <li><strong>AccessDenied:</strong> IAM user needs proper permissions for the bucket/object</li>
+                                    <li><strong>For uploads:</strong> Make sure Content-Type matches what you're uploading</li>
+                                    <li><strong>Region Mismatch:</strong> Use the Test Connection button to detect the correct bucket region</li>
+                                </ul>
+                            </div>
+                        </details>
+                    </div>
+                </div>
+            `;
+            
+            // Show the default section and hide others
+            showSelectedResult(defaultOption);
+            
+            // Set the correct option in dropdown
+            const selectElement = document.getElementById('result-type-select');
+            if (selectElement) {
+                selectElement.value = defaultOption;
+            }
+            
+            // Start countdown
+            startCountdown(`countdown-${Date.now()}`, expiresAt);
+        }
+
+        function showSelectedResult(resultType) {
+            // Hide all sections
+            const allSections = document.querySelectorAll('#selected-result-container .result-section');
+            allSections.forEach(section => {
+                section.style.display = 'none';
+            });
+            
+            // Show selected section based on type
+            const sectionMap = {
+                'download-url': 'download-url-section',
+                'curl-download': 'curl-download-section',
+                'html-form': 'html-form-section',
+                'put-url': 'put-url-section',
+                'curl-put': 'curl-put-section',
+                'post-url': 'post-url-section',
+                'curl-post': 'curl-post-section'
+            };
+            
+            const sectionId = sectionMap[resultType];
+            if (sectionId) {
+                const section = document.getElementById(sectionId);
+                if (section) {
+                    section.style.display = 'block';
+                }
+            }
+        }
+
+        // Bucket and Object browsing functionality
+        document.getElementById('browse-buckets-btn').addEventListener('click', function() {
+            const accessKey = document.getElementById('wizard-access-key').value;
+            const secretKey = document.getElementById('wizard-secret-key').value;
+            
+            if (!accessKey || !secretKey) {
+                alert('Please enter AWS credentials first');
+                return;
+            }
+            
+            // Set target field for bucket selection
+            window.bucketTargetField = 'wizard-bucket';
+            loadBuckets();
+            document.getElementById('bucketBrowser').style.display = 'block';
+        });
+
+        // Extension renamer bucket browse button
+        document.getElementById('browse-rename-buckets-btn').addEventListener('click', function() {
+            const accessKey = document.getElementById('wizard-access-key').value;
+            const secretKey = document.getElementById('wizard-secret-key').value;
+            
+            if (!accessKey || !secretKey) {
+                alert('Please enter AWS credentials first');
+                return;
+            }
+            
+            // Set target field for bucket selection
+            window.bucketTargetField = 'wizard-rename-bucket';
+            loadBuckets();
+            document.getElementById('bucketBrowser').style.display = 'block';
+        });
+
+        document.getElementById('browse-objects-btn').addEventListener('click', function() {
+            const accessKey = document.getElementById('wizard-access-key').value;
+            const secretKey = document.getElementById('wizard-secret-key').value;
+            const bucket = document.getElementById('wizard-bucket').value;
+            
+            if (!accessKey || !secretKey) {
+                alert('Please enter AWS credentials first');
+                return;
+            }
+            
+            if (!bucket) {
+                alert('Please enter a bucket name or browse buckets first');
+                return;
+            }
+            
+            selectedBucket = bucket;
+            currentObjectPrefix = '';
+            loadObjects(currentObjectPrefix);
+            document.getElementById('objectBrowser').style.display = 'block';
+        });
+
+        // Bucket browser modal handlers
+        document.getElementById('closeBucketBrowser').addEventListener('click', function() {
+            document.getElementById('bucketBrowser').style.display = 'none';
+        });
+
+        document.getElementById('cancelBucketBrowser').addEventListener('click', function() {
+            document.getElementById('bucketBrowser').style.display = 'none';
+        });
+
+        document.getElementById('selectBucket').addEventListener('click', function() {
+            if (selectedBucket) {
+                // Use the target field set by the browse button that was clicked
+                const targetField = window.bucketTargetField || 'wizard-bucket';
+                document.getElementById(targetField).value = selectedBucket;
+                document.getElementById('bucketBrowser').style.display = 'none';
+            }
+        });
+
+        // Object browser modal handlers
+        document.getElementById('closeObjectBrowser').addEventListener('click', function() {
+            document.getElementById('objectBrowser').style.display = 'none';
+        });
+
+        document.getElementById('cancelObjectBrowser').addEventListener('click', function() {
+            document.getElementById('objectBrowser').style.display = 'none';
+        });
+
+        document.getElementById('selectObject').addEventListener('click', function() {
+            // Handle root folder selection properly - use currentObjectPrefix as-is
+            document.getElementById('wizard-object-key').value = currentObjectPrefix;
+            document.getElementById('objectBrowser').style.display = 'none';
+        });
+
+        // Extension rename browse button handler
+        document.getElementById('wizard-browse-btn').addEventListener('click', function() {
+            const accessKey = document.getElementById('wizard-access-key').value;
+            const secretKey = document.getElementById('wizard-secret-key').value;
+            const bucket = document.getElementById('wizard-rename-bucket').value;
+            
+            if (!accessKey || !secretKey) {
+                alert('Please enter AWS credentials first');
+                return;
+            }
+            
+            if (!bucket) {
+                alert('Please enter a bucket name first');
+                return;
+            }
+            
+            selectedBucket = bucket;
+            currentObjectPrefix = '';
+            loadObjects(currentObjectPrefix);
+            document.getElementById('objectBrowser').style.display = 'block';
+            
+            // Update select handler to populate rename prefix field
+            document.getElementById('selectObject').onclick = function() {
+                document.getElementById('wizard-rename-prefix').value = currentObjectPrefix;
+                document.getElementById('objectBrowser').style.display = 'none';
+            };
+        });
+
+        // HTML Preview modal handlers
+        document.getElementById('closeHtmlPreview').addEventListener('click', function() {
+            document.getElementById('htmlPreviewModal').style.display = 'none';
+        });
+
+        document.getElementById('closeHtmlPreviewBtn').addEventListener('click', function() {
+            document.getElementById('htmlPreviewModal').style.display = 'none';
+        });
+
+        // Close modals when clicking outside
+        window.addEventListener('click', function(event) {
+            const htmlPreviewModal = document.getElementById('htmlPreviewModal');
+            if (event.target === htmlPreviewModal) {
+                htmlPreviewModal.style.display = 'none';
+            }
+        });
+
+        function loadBuckets() {
+            const accessKey = document.getElementById('wizard-access-key').value;
+            const secretKey = document.getElementById('wizard-secret-key').value;
+            const sessionToken = document.getElementById('wizard-session-token').value;
+            const region = document.getElementById('wizard-region').value;
+            
+            const contentDiv = document.getElementById('bucketBrowserContent');
+            const searchContainer = document.getElementById('bucketSearchContainer');
+            contentDiv.innerHTML = '<div class="browser-loading">Loading buckets...</div>';
+            
+            fetch('/list-buckets', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    access_key: accessKey,
+                    secret_key: secretKey,
+                    session_token: sessionToken,
+                    region: region
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show search container
+                    searchContainer.style.display = 'block';
+                    
+                    // Store bucket data globally for searching
+                    window.bucketData = data.buckets;
+                    
+                    // Display all buckets initially
+                    displayBuckets(data.buckets);
+                    
+                    // Set up search functionality
+                    const searchInput = document.getElementById('bucketSearchInput');
+                    searchInput.addEventListener('input', function() {
+                        const searchTerm = this.value.toLowerCase();
+                        const filteredBuckets = window.bucketData.filter(bucket => 
+                            bucket.name.toLowerCase().includes(searchTerm)
+                        );
+                        displayBuckets(filteredBuckets);
+                    });
+                } else {
+                    contentDiv.innerHTML = `<div class="error-message">${data.message}</div>`;
+                }
+            })
+            .catch(error => {
+                contentDiv.innerHTML = `<div class="error-message">Error loading buckets: ${error.message}</div>`;
+            });
+        }
+
+        function displayBuckets(buckets) {
+            const contentDiv = document.getElementById('bucketBrowserContent');
+            let html = '';
+            
+            buckets.forEach(bucket => {
+                html += `<div class="browser-item bucket" onclick="selectBucketItem('${bucket.name}')">`;
+                html += `📦 ${bucket.name}`;
+                html += `<small style="margin-left: 10px; color: #6c757d;">${bucket.creation_date}</small>`;
+                html += '</div>';
+            });
+            
+            if (html === '') {
+                html = '<div class="browser-loading">No buckets found</div>';
+            }
+            
+            contentDiv.innerHTML = html;
+        }
+
+        function selectBucketItem(bucketName) {
+            document.querySelectorAll('.browser-item.bucket').forEach(item => item.classList.remove('selected'));
+            event.target.classList.add('selected');
+            selectedBucket = bucketName;
+        }
+
+        function loadObjects(prefix) {
+            const accessKey = document.getElementById('wizard-access-key').value;
+            const secretKey = document.getElementById('wizard-secret-key').value;
+            const sessionToken = document.getElementById('wizard-session-token').value;
+            const region = document.getElementById('wizard-region').value;
+            const bucket = selectedBucket;
+            
+            const contentDiv = document.getElementById('objectBrowserContent');
+            const pathDiv = document.getElementById('currentObjectPath');
+            
+            contentDiv.innerHTML = '<div class="browser-loading">Loading...</div>';
+            pathDiv.innerHTML = `Current path: <strong>/${prefix}</strong>`;
+            
+            fetch('/browse-folders', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    access_key: accessKey,
+                    secret_key: secretKey,
+                    session_token: sessionToken,
+                    region: region,
+                    bucket: bucket,
+                    prefix: prefix
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    let html = '';
+                    
+                    // Add parent folder option if not at root
+                    if (prefix) {
+                        const parentPrefix = prefix.substring(0, prefix.lastIndexOf('/', prefix.length - 2) + 1);
+                        html += '<div class="browser-item folder" onclick="navigateToObjectFolder(\'' + parentPrefix + '\')">';
+                        html += '<strong>.. (Parent Folder)</strong>';
+                        html += '</div>';
+                    }
+                    
+                    // Add folders
+                    data.folders.forEach(folder => {
+                        html += '<div class="browser-item folder" onclick="navigateToObjectFolder(\'' + folder.full_path + '\')">';
+                        html += '📁 ' + folder.name;
+                        html += '</div>';
+                    });
+                    
+                    // Add files (only for download URLs)
+                    const urlType = document.getElementById('wizard-url-type').value;
+                    if (urlType === 'download') {
+                        data.files.forEach(file => {
+                            html += '<div class="browser-item file" onclick="selectObjectItem(\'' + file.full_path + '\')">';
+                            html += '📄 ' + file.name + ' <small>(' + formatFileSize(file.size) + ')</small>';
+                            html += '</div>';
+                        });
+                    }
+                    
+                    if (html === '') {
+                        html = `
+                            <div class="empty-bucket-options">
+                                <div class="browser-loading">This bucket appears to be empty or at root level</div>
+                                <div class="empty-bucket-actions">
+                                    <div class="browser-item folder" onclick="selectRootFolder()">
+                                        📁 <strong>Select Root Folder (/)</strong>
+                                        <small>Use the root of the bucket</small>
+                                    </div>
+                                    <div class="browser-item folder" onclick="createNewFolder()">
+                                        ➕ <strong>Create New Folder</strong>
+                                        <small>Create a new folder in this location</small>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    contentDiv.innerHTML = html;
+                } else {
+                    contentDiv.innerHTML = `<div class="error-message">${data.message}</div>`;
+                }
+            })
+            .catch(error => {
+                contentDiv.innerHTML = `<div class="error-message">Error loading objects: ${error.message}</div>`;
+            });
+        }
+
+        function navigateToObjectFolder(prefix) {
+            currentObjectPrefix = prefix;
+            loadObjects(prefix);
+        }
+
+        function selectObjectItem(objectPath) {
+            document.querySelectorAll('.browser-item.file').forEach(item => item.classList.remove('selected'));
+            event.target.classList.add('selected');
+            currentObjectPrefix = objectPath;
+        }
+
+        function selectRootFolder() {
+            currentObjectPrefix = '';
+            document.querySelectorAll('.browser-item').forEach(item => item.classList.remove('selected'));
+            if (event && event.target) {
+                event.target.classList.add('selected');
+            }
+            // Update the path display
+            const pathDiv = document.getElementById('currentObjectPath');
+            if (pathDiv) {
+                pathDiv.innerHTML = 'Current path: <strong>/</strong>';
+            }
+        }
+
+        // HTML form download and preview functions
+        function downloadHtmlForm(base64Html, filename, buttonElement) {
+            try {
+                // Decode the double-encoded HTML (encodeURIComponent + btoa)
+                const htmlContent = decodeURIComponent(atob(base64Html));
+                
+                // Get the button element that was clicked
+                const clickedButton = buttonElement || event.target;
+                
+                // Detect environment for download handling
+                const isPyWebView = !!window.pywebview;
+                console.log(`Download attempt in ${isPyWebView ? 'PyWebView' : 'Web'} mode`);
+                
+                // Try multiple download methods for pywebview compatibility
+                let downloadSuccess = false;
+                
+                // Method 1: Try traditional blob download
+                try {
+                    const blob = new Blob([htmlContent], { type: 'text/html' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    downloadSuccess = true;
+                } catch (blobError) {
+                    console.log('Blob download failed, trying alternative method:', blobError);
+                }
+                
+                // Method 2: If blob download fails, try data URL
+                if (!downloadSuccess) {
+                    try {
+                        const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(htmlContent);
+                        const a = document.createElement('a');
+                        a.href = dataUrl;
+                        a.download = filename;
+                        a.style.display = 'none';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        downloadSuccess = true;
+                    } catch (dataError) {
+                        console.log('Data URL download failed, showing manual save option:', dataError);
+                    }
+                }
+                
+                // Method 3: Handle pywebview vs web app mode differences
+                if (!downloadSuccess) {
+                    if (window.pywebview) {
+                        // PyWebView mode - try special handling
+                        try {
+                            // Method 3a: Try pywebview save_file API
+                            if (window.pywebview.api && window.pywebview.api.save_file) {
+                                window.pywebview.api.save_file(htmlContent, filename).then(() => {
+                                    if (clickedButton) {
+                                        clickedButton.textContent = '✅ Saved!';
+                                        clickedButton.classList.add('copied');
+                                        setTimeout(() => {
+                                            clickedButton.textContent = '📥 Download HTML Form';
+                                            clickedButton.classList.remove('copied');
+                                        }, 2000);
+                                    }
+                                    downloadSuccess = true;
+                                }).catch((err) => {
+                                    console.log('PyWebView save_file failed:', err);
+                                });
+                            }
+                            
+                            // Method 3b: Try opening save dialog via backend
+                            if (!downloadSuccess) {
+                                fetch('/save-html-file', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({
+                                        html_content: htmlContent,
+                                        filename: filename
+                                    })
+                                })
+                                .then(response => response.json())
+                                .then(data => {
+                                    if (data.success) {
+                                        if (clickedButton) {
+                                            clickedButton.textContent = '✅ Saved!';
+                                            clickedButton.classList.add('copied');
+                                            setTimeout(() => {
+                                                clickedButton.textContent = '📥 Download HTML Form';
+                                                clickedButton.classList.remove('copied');
+                                            }, 2000);
+                                        }
+                                        downloadSuccess = true;
+                                    } else {
+                                        console.log('Backend save failed:', data.message);
+                                    }
+                                })
+                                .catch(error => {
+                                    console.log('Backend save request failed:', error);
+                                });
+                            }
+                        } catch (pywebviewError) {
+                            console.log('PyWebView methods not available:', pywebviewError);
+                        }
+                    } else {
+                        // Web app mode - downloads should work with blob/data URL methods
+                        console.log('Running in web mode - previous download methods should have worked');
+                    }
+                }
+                
+                // Method 4: If all fails, copy to clipboard and show modal with HTML
+                if (!downloadSuccess) {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(htmlContent).then(() => {
+                            showHtmlContentModal(htmlContent, filename);
+                        }).catch(() => {
+                            // If clipboard also fails, just show the modal
+                            showHtmlContentModal(htmlContent, filename);
+                        });
+                    } else {
+                        showHtmlContentModal(htmlContent, filename);
+                    }
+                    return;
+                }
+                
+                // Update button to show success (only if download was successful)
+                if (downloadSuccess && clickedButton) {
+                    clickedButton.textContent = '✅ Downloaded!';
+                    clickedButton.classList.add('copied');
+                    setTimeout(() => {
+                        clickedButton.textContent = '📥 Download HTML Form';
+                        clickedButton.classList.remove('copied');
+                    }, 2000);
+                }
+                
+            } catch (error) {
+                console.error('Error in downloadHtmlForm:', error);
+                alert('Error downloading file: ' + error.message);
+            }
+        }
+
+        function showHtmlContentModal(htmlContent, filename) {
+            // Create modal to show HTML content for manual saving
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.style.display = 'block';
+            modal.innerHTML = `
+                <div class="modal-content" style="width: 90%; max-width: 800px;">
+                    <div class="modal-header">
+                        <h3>Save HTML File: ${filename}</h3>
+                        <span class="close" onclick="this.closest('.modal').remove()">&times;</span>
+                    </div>
+                    <div class="modal-body">
+                        <p><strong>Download not supported in this environment.</strong></p>
+                        <p>Please copy the HTML content below and save it manually as <code>${filename}</code>:</p>
+                        <div style="margin: 15px 0;">
+                            <button onclick="navigator.clipboard.writeText(this.nextElementSibling.value).then(() => { this.textContent = '✅ Copied!'; setTimeout(() => this.textContent = '📋 Copy HTML', 2000); })" class="copy-btn">📋 Copy HTML</button>
+                        </div>
+                        <textarea readonly style="width: 100%; height: 300px; font-family: monospace; font-size: 12px; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">${htmlContent}</textarea>
+                    </div>
+                    <div class="modal-footer">
+                        <button onclick="this.closest('.modal').remove()" class="btn" style="background: #6c757d;">Close</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            // Update the original button
+            // Note: event may not be available in this context, so we skip button update
+        }
+
+        function previewHtmlForm(base64Html) {
+            try {
+                // Decode the double-encoded HTML (encodeURIComponent + btoa)
+                const htmlContent = decodeURIComponent(atob(base64Html));
+                
+                // Create modal preview instead of popup
+                const modal = document.getElementById('htmlPreviewModal');
+                const iframe = document.getElementById('htmlPreviewFrame');
+                
+                // Set the HTML content in the iframe
+                iframe.srcdoc = htmlContent;
+                
+                // Show the modal
+                modal.style.display = 'block';
+            } catch (error) {
+                alert('Error previewing form: ' + error.message);
+            }
+        }
+
+        function createNewFolder() {
+            const folderName = prompt('Enter folder name:');
+            if (folderName && folderName.trim()) {
+                const sanitizedName = folderName.trim().replace(/[^a-zA-Z0-9\-_\.]/g, '');
+                if (sanitizedName) {
+                    const newFolderPath = currentObjectPrefix + sanitizedName + '/';
+                    currentObjectPrefix = newFolderPath;
+                    document.getElementById('wizard-object-key').value = newFolderPath;
+                    document.getElementById('objectBrowser').style.display = 'none';
+                } else {
+                    alert('Invalid folder name. Please use only letters, numbers, hyphens, underscores, and dots.');
+                }
+            }
+        }
+
+        // Utility functions
+        function copyToClipboard(text, button) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(function() {
+                    const originalText = button.textContent;
+                    button.textContent = 'Copied!';
+                    button.classList.add('copied');
+                    setTimeout(function() {
+                        button.textContent = originalText;
+                        button.classList.remove('copied');
+                    }, 2000);
+                }).catch(function(err) {
+                    console.error('Failed to copy: ', err);
+                    // Fallback for environments where clipboard API doesn't work
+                    fallbackCopyTextToClipboard(text, button);
+                });
+            } else {
+                // Fallback for older browsers or restricted environments
+                fallbackCopyTextToClipboard(text, button);
+            }
+        }
+        
+        function fallbackCopyTextToClipboard(text, button) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.top = '0';
+            textArea.style.left = '0';
+            textArea.style.position = 'fixed';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    const originalText = button.textContent;
+                    button.textContent = 'Copied!';
+                    button.classList.add('copied');
+                    setTimeout(function() {
+                        button.textContent = originalText;
+                        button.classList.remove('copied');
+                    }, 2000);
+                } else {
+                    button.textContent = 'Copy failed';
+                    setTimeout(function() {
+                        button.textContent = 'Copy';
+                    }, 2000);
+                }
+            } catch (err) {
+                console.error('Fallback: Oops, unable to copy', err);
+                button.textContent = 'Copy failed';
+                setTimeout(function() {
+                    button.textContent = 'Copy';
+                }, 2000);
+            }
+            
+            document.body.removeChild(textArea);
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function startCountdown(elementId, expiresAt) {
+            const element = document.getElementById(elementId);
+            if (!element) return;
+            
+            const interval = setInterval(function() {
+                const now = new Date().getTime();
+                const expiry = new Date(expiresAt).getTime();
+                const timeLeft = expiry - now;
+                
+                if (timeLeft <= 0) {
+                    element.textContent = 'EXPIRED';
+                    element.classList.add('expired');
+                    clearInterval(interval);
+                    return;
+                }
+                
+                const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+                
+                let timeString = '';
+                if (days > 0) timeString += `${days}d `;
+                if (hours > 0) timeString += `${hours}h `;
+                timeString += `${minutes}m ${seconds}s`;
+                
+                element.textContent = timeString;
+            }, 1000);
+            
+            countdownIntervals.push(interval);
+        }
+
+        function resetWizard() {
+            // Clear all intervals
+            countdownIntervals.forEach(interval => clearInterval(interval));
+            countdownIntervals = [];
+            
+            // Check if credentials should be preserved
+            const saveCredentials = document.getElementById('wizard-save-credentials') && 
+                                  document.getElementById('wizard-save-credentials').checked;
+            
+            // Store credentials if they should be preserved
+            let preservedCredentials = {};
+            if (saveCredentials) {
+                preservedCredentials = {
+                    access_key: document.getElementById('wizard-access-key').value,
+                    secret_key: document.getElementById('wizard-secret-key').value,
+                    session_token: document.getElementById('wizard-session-token').value,
+                    region: document.getElementById('wizard-region').value,
+                    save_credentials: true
+                };
+            }
+            
+            // Reset form
+            document.querySelectorAll('input, select, textarea').forEach(input => {
+                if (input.type === 'checkbox' || input.type === 'radio') {
+                    if (input.id === 'wizard-recursive') {
+                        input.checked = true; // Keep recursive checked by default
+                    } else if (input.id === 'wizard-generate-html') {
+                        input.checked = true; // Keep generate HTML checked by default
+                    } else if (input.id === 'wizard-save-credentials' && saveCredentials) {
+                        input.checked = true; // Preserve save credentials setting
+                    } else {
+                        input.checked = false;
+                    }
+                } else {
+                    if (input.id === 'wizard-old-ext' || input.id === 'wizard-new-ext') {
+                        input.value = '.'; // Reset to default dot
+                    } else if (input.id === 'wizard-expiration') {
+                        input.value = '1800'; // Reset to default 30 minutes
+                    } else if (input.id === 'wizard-region') {
+                        input.value = saveCredentials ? preservedCredentials.region : 'us-east-1';
+                    } else if (saveCredentials && preservedCredentials[input.name]) {
+                        input.value = preservedCredentials[input.name]; // Restore preserved credentials
+                    } else if (!saveCredentials || !['wizard-access-key', 'wizard-secret-key', 'wizard-session-token'].includes(input.id)) {
+                        input.value = ''; // Clear non-credential fields or when not preserving
+                    }
+                }
+            });
+            
+            // Reset wizard state
+            currentStep = 1;
+            selectedAction = null;
+            previewFiles = [];
+            
+            // Hide all wizard steps
+            document.querySelectorAll('.wizard-step').forEach(step => step.classList.remove('active'));
+            document.getElementById('step-1').classList.add('active');
+            
+            // Reset action cards
+            document.querySelectorAll('.action-card').forEach(card => card.classList.remove('selected'));
+            document.getElementById('action-next').disabled = true;
+            
+            // Reset progress
+            updateProgress();
+            
+            // Clear results
+            document.getElementById('wizard-results').innerHTML = '';
+            document.getElementById('results-title').textContent = 'Step 4: Results';
+        }
+
+        // File Browser Functions
+        function copyCredentialsToFileBrowserForm() {
+            const accessKey = document.getElementById('wizard-access-key').value;
+            const secretKey = document.getElementById('wizard-secret-key').value;
+            const sessionToken = document.getElementById('wizard-session-token').value;
+            const region = document.getElementById('wizard-region').value;
+            
+            // Store credentials for file browser operations
+            window.fileBrowserCredentials = {
+                access_key: accessKey,
+                secret_key: secretKey,
+                session_token: sessionToken,
+                region: region
+            };
+            
+            // Load buckets for Select2 dropdown
+            loadBucketsForSelect2();
+        }
+        
+        async function loadBucketsForSelect2() {
+            try {
+                const response = await fetch('/list-buckets', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(window.fileBrowserCredentials)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Get last used buckets from localStorage
+                    const lastUsedBuckets = JSON.parse(localStorage.getItem('lastUsedBuckets') || '[]');
+                    
+                    // Sort buckets by last used (most recent first)
+                    const sortedBuckets = data.buckets.sort((a, b) => {
+                        const aIndex = lastUsedBuckets.indexOf(a.name);
+                        const bIndex = lastUsedBuckets.indexOf(b.name);
+                        
+                        // If both are in last used, sort by position (0 is most recent)
+                        if (aIndex !== -1 && bIndex !== -1) {
+                            return aIndex - bIndex;
+                        }
+                        // If only a is in last used, a comes first
+                        if (aIndex !== -1) return -1;
+                        // If only b is in last used, b comes first
+                        if (bIndex !== -1) return 1;
+                        // If neither are in last used, sort alphabetically
+                        return a.name.localeCompare(b.name);
+                    });
+                    
+                    const select = $('#filebrowser-bucket-select');
+                    select.empty();
+                    select.append('<option value="">Choose a bucket...</option>');
+                    
+                    sortedBuckets.forEach(bucket => {
+                        select.append(`<option value="${bucket.name}">${bucket.name}</option>`);
+                    });
+                    
+                    // Initialize Select2 if not already initialized
+                    if (!select.hasClass('select2-hidden-accessible')) {
+                        select.select2({
+                            placeholder: 'Choose a bucket...',
+                            allowClear: true,
+                            width: '100%'
+                        });
+                    }
+                } else {
+                    console.error('Failed to load buckets:', data.message);
+                }
+            } catch (error) {
+                console.error('Error loading buckets:', error);
+            }
+        }
+        
+        function openFileBrowser() {
+            const bucket = $('#filebrowser-bucket-select').val();
+            
+            if (!bucket) {
+                alert('Please select a bucket first');
+                return;
+            }
+            
+            // Update last used buckets
+            updateLastUsedBucket(bucket);
+            
+            // Initialize file browser
+            window.currentFileBrowserBucket = bucket;
+            window.currentFileBrowserPrefix = '';
+            window.selectedFiles = new Set();
+            
+            // Update UI
+            document.getElementById('currentBucket').textContent = bucket;
+            document.getElementById('currentPath').textContent = '/';
+            
+            // Show modal and load contents
+            document.getElementById('fileBrowserModal').style.display = 'block';
+            loadFileBrowserContents(bucket, '');
+        }
+        
+        function updateLastUsedBucket(bucketName) {
+            let lastUsedBuckets = JSON.parse(localStorage.getItem('lastUsedBuckets') || '[]');
+            
+            // Remove bucket if it exists in the list
+            lastUsedBuckets = lastUsedBuckets.filter(name => name !== bucketName);
+            
+            // Add bucket to the beginning
+            lastUsedBuckets.unshift(bucketName);
+            
+            // Keep only the last 10 buckets
+            lastUsedBuckets = lastUsedBuckets.slice(0, 10);
+            
+            // Save back to localStorage
+            localStorage.setItem('lastUsedBuckets', JSON.stringify(lastUsedBuckets));
+        }
+        
+        function openUploadVerification() {
+            const bucket = $('#filebrowser-bucket-select').val();
+            
+            if (!bucket) {
+                alert('Please select a bucket first');
+                return;
+            }
+            
+            // Update last used buckets
+            updateLastUsedBucket(bucket);
+            
+            window.currentVerificationBucket = bucket;
+            document.getElementById('uploadVerificationModal').style.display = 'block';
+        }
+        
+        
+        async function loadFileBrowserContents(bucket, prefix = '') {
+            const listElement = document.getElementById('fileBrowserList');
+            listElement.innerHTML = '<div class="browser-loading">Loading...</div>';
+            
+            try {
+                const response = await fetch('/browse-folders', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        ...window.fileBrowserCredentials,
+                        bucket: bucket,
+                        prefix: prefix
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayFileBrowserContents(data);
+                } else {
+                    listElement.innerHTML = `<div style="color: #dc3545;">Error: ${data.message}</div>`;
+                }
+            } catch (error) {
+                console.error('Error loading file browser contents:', error);
+                listElement.innerHTML = `<div style="color: #dc3545;">Error loading contents: ${error.message}</div>`;
+            }
+        }
+        
+        function displayFileBrowserContents(data) {
+            const listElement = document.getElementById('fileBrowserList');
+            const { folders, files, current_prefix } = data;
+            
+            // Clear selection when navigating to new folder
+            clearSelection();
+            
+            let html = '';
+            
+            // Add "up" button if not at root
+            if (current_prefix && current_prefix !== '') {
+                const parentPrefix = current_prefix.split('/').slice(0, -2).join('/');
+                const finalPrefix = parentPrefix ? parentPrefix + '/' : '';
+                html += `
+                    <div class="file-item folder" data-type="up" data-path="${finalPrefix}">
+                        <span>📁</span>
+                        <span style="font-weight: bold; margin-left: 15px;">..</span>
+                        <span style="color: #666; font-size: 12px; margin-left: auto;">(Parent Directory)</span>
+                    </div>
+                `;
+            }
+            
+            // Add folders
+            folders.forEach(folder => {
+                html += `
+                    <div class="file-item folder" data-type="folder" data-path="${folder.full_path}" data-name="${folder.name}">
+                        <input type="checkbox" class="file-checkbox" onclick="event.stopPropagation(); toggleFileSelection(this)">
+                        <span>📁</span>
+                        <span style="font-weight: bold; flex: 1;">${escapeHtml(folder.name)}</span>
+                        <span style="color: #666; font-size: 12px;">Folder</span>
+                    </div>
+                `;
+            });
+            
+            // Add files
+            files.forEach(file => {
+                const sizeFormatted = formatFileSize(file.size);
+                html += `
+                    <div class="file-item file" data-type="file" data-path="${file.full_path}" data-name="${file.name}" data-size="${file.size}">
+                        <input type="checkbox" class="file-checkbox" onclick="event.stopPropagation(); toggleFileSelection(this)">
+                        <span>📄</span>
+                        <span style="flex: 1;">${escapeHtml(file.name)}</span>
+                        <span style="color: #666; font-size: 12px;">${sizeFormatted}</span>
+                    </div>
+                `;
+            });
+            
+            if (folders.length === 0 && files.length === 0) {
+                html = '<div class="empty-folder"><p>This folder is empty</p></div>';
+            }
+            
+            listElement.innerHTML = html;
+            
+            // Add click and context menu handlers
+            document.querySelectorAll('.file-item').forEach(item => {
+                // Double-click to navigate folders
+                if (item.dataset.type === 'folder' || item.dataset.type === 'up') {
+                    item.addEventListener('dblclick', function(e) {
+                        if (e.target.type !== 'checkbox') {
+                            const path = this.dataset.path;
+                            window.currentFileBrowserPrefix = path;
+                            document.getElementById('currentPath').textContent = path || '/';
+                            loadFileBrowserContents(window.currentFileBrowserBucket, path);
+                        }
+                    });
+                }
+                
+                // Right-click context menu
+                item.addEventListener('contextmenu', function(e) {
+                    e.preventDefault();
+                    showContextMenu(e, this);
+                });
+                
+                // Single click to select
+                item.addEventListener('click', function(e) {
+                    if (e.target.type !== 'checkbox') {
+                        const checkbox = this.querySelector('input[type="checkbox"]');
+                        if (checkbox) {
+                            checkbox.checked = !checkbox.checked;
+                            toggleFileSelection(checkbox);
+                        }
+                    }
+                });
+            });
+            
+            updateSelectionUI();
+        }
+        
+        function showContextMenu(event, fileItem) {
+            const contextMenu = document.getElementById('contextMenu');
+            const fileType = fileItem.dataset.type;
+            const fileName = fileItem.dataset.name;
+            
+            // Update context menu items based on file type
+            const downloadItem = document.getElementById('contextDownload');
+            const deleteItem = document.getElementById('contextDelete');
+            const newFolderItem = document.getElementById('contextNewFolder');
+            
+            // Reset all items
+            downloadItem.classList.remove('disabled');
+            deleteItem.classList.remove('disabled');
+            newFolderItem.classList.remove('disabled');
+            
+            if (fileType === 'up') {
+                downloadItem.classList.add('disabled');
+                deleteItem.classList.add('disabled');
+            }
+            
+            // Store current item for context actions
+            window.contextMenuItem = fileItem;
+            
+            // Position and show context menu
+            contextMenu.style.left = event.pageX + 'px';
+            contextMenu.style.top = event.pageY + 'px';
+            contextMenu.style.display = 'block';
+            
+            // Hide context menu when clicking elsewhere
+            function hideContextMenu() {
+                contextMenu.style.display = 'none';
+                document.removeEventListener('click', hideContextMenu);
+            }
+            
+            setTimeout(() => {
+                document.addEventListener('click', hideContextMenu);
+            }, 100);
+        }
+        
+        function toggleFileSelection(checkbox) {
+            const item = checkbox.closest('.file-item');
+            const path = item.dataset.path;
+            
+            if (checkbox.checked) {
+                window.selectedFiles.add(path);
+            } else {
+                window.selectedFiles.delete(path);
+            }
+            
+            updateSelectionUI();
+        }
+        
+        function updateSelectionUI() {
+            const count = window.selectedFiles ? window.selectedFiles.size : 0;
+            const selectionCount = document.getElementById('selectionCount');
+            const downloadBtn = document.getElementById('downloadSelectedBtn');
+            const deleteBtn = document.getElementById('deleteSelectedBtn');
+            const selectAllBtn = document.getElementById('selectAllBtn');
+            
+            // Update selection count
+            selectionCount.textContent = `${count} item${count > 1 ? 's' : ''} selected`;
+            
+            // Update button states
+            downloadBtn.disabled = count === 0;
+            deleteBtn.disabled = count === 0;
+            
+            // Update select all button state
+            const totalItems = document.querySelectorAll('#fileBrowserList .file-item').length;
+            if (count === totalItems && totalItems > 0) {
+                selectAllBtn.classList.add('active');
+            } else {
+                selectAllBtn.classList.remove('active');
+            }
+        }
+        
+        function selectAllItems() {
+            if (!window.selectedFiles) {
+                window.selectedFiles = new Set();
+            }
+            
+            // Select all visible file items
+            const fileItems = document.querySelectorAll('#fileBrowserList .file-item');
+            fileItems.forEach(item => {
+                const checkbox = item.querySelector('input[type="checkbox"]');
+                if (checkbox) {
+                    checkbox.checked = true;
+                    item.classList.add('selected');
+                    const key = checkbox.getAttribute('data-key');
+                    if (key) {
+                        window.selectedFiles.add(key);
+                    }
+                }
+            });
+            
+            updateSelectionUI();
+        }
+        
+        function clearSelection() {
+            // Initialize selectedFiles if it doesn't exist
+            if (!window.selectedFiles) {
+                window.selectedFiles = new Set();
+            } else {
+                window.selectedFiles.clear();
+            }
+            
+            // Clear all checkboxes and selection styling
+            const fileItems = document.querySelectorAll('#fileBrowserList .file-item');
+            fileItems.forEach(item => {
+                const checkbox = item.querySelector('input[type="checkbox"]');
+                if (checkbox) {
+                    checkbox.checked = false;
+                    item.classList.remove('selected');
+                }
+            });
+            
+            updateSelectionUI();
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        // File Browser Event Handlers
+        document.addEventListener('DOMContentLoaded', function() {
+            // File manager option cards
+            document.getElementById('browse-files-option').addEventListener('click', function() {
+                openFileBrowser();
+            });
+            
+            document.getElementById('verify-upload-option').addEventListener('click', function() {
+                openUploadVerification();
+            });
+            
+            // Close file browser modal
+            document.getElementById('closeFileBrowser').addEventListener('click', function() {
+                document.getElementById('fileBrowserModal').style.display = 'none';
+            });
+            
+            // Refresh browser
+            document.getElementById('refreshBrowser').addEventListener('click', function() {
+                loadFileBrowserContents(window.currentFileBrowserBucket, window.currentFileBrowserPrefix);
+            });
+            
+            // Exit application from file browser
+            document.getElementById('exitApplicationBtn').addEventListener('click', async function() {
+                if (confirm('Are you sure you want to exit the application?')) {
+                    try {
+                        await fetch('/exit', { method: 'POST' });
+                        window.close();
+                    } catch (error) {
+                        console.error('Error exiting application:', error);
+                        alert('Could not exit application. You may close this window manually.');
+                    }
+                }
+            });
+            
+            // Exit application from main page
+            document.getElementById('mainExitBtn').addEventListener('click', async function() {
+                if (confirm('Are you sure you want to exit the application?')) {
+                    try {
+                        await fetch('/exit', { method: 'POST' });
+                        window.close();
+                    } catch (error) {
+                        console.error('Error exiting application:', error);
+                        alert('Could not exit application. You may close this window manually.');
+                    }
+                }
+            });
+            
+            // Upload verification modal handlers
+            document.getElementById('closeUploadVerification').addEventListener('click', function() {
+                document.getElementById('uploadVerificationModal').style.display = 'none';
+            });
+            
+            // File browser selection handlers
+            document.getElementById('selectAllBtn').addEventListener('click', function() {
+                selectAllItems();
+            });
+            
+            document.getElementById('clearSelectionBtn').addEventListener('click', function() {
+                clearSelection();
+            });
+            
+            
+            // JSON file input handler
+            document.getElementById('jsonFileInput').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                const verifyBtn = document.getElementById('verifyUploadBtn');
+                
+                if (file && file.type === 'application/json') {
+                    verifyBtn.disabled = false;
+                    window.uploadJsonFile = file;
+                } else {
+                    verifyBtn.disabled = true;
+                    window.uploadJsonFile = null;
+                    if (file) {
+                        alert('Please select a valid JSON file.');
+                    }
+                }
+            });
+            
+            // Verify upload button
+            document.getElementById('verifyUploadBtn').addEventListener('click', function() {
+                if (window.uploadJsonFile) {
+                    verifyUploadFromJson();
+                }
+            });
+            
+            
+            // Close create folder modal
+            document.getElementById('closeCreateFolder').addEventListener('click', function() {
+                document.getElementById('createFolderModal').style.display = 'none';
+            });
+            
+            document.getElementById('cancelCreateFolder').addEventListener('click', function() {
+                document.getElementById('createFolderModal').style.display = 'none';
+            });
+            
+            // Confirm create folder
+            document.getElementById('confirmCreateFolder').addEventListener('click', function() {
+                const folderName = document.getElementById('newFolderName').value.trim();
+                if (folderName) {
+                    createFolder(folderName);
+                }
+            });
+            
+            // Handle enter key in folder name input
+            document.getElementById('newFolderName').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    const folderName = this.value.trim();
+                    if (folderName) {
+                        createFolder(folderName);
+                    }
+                }
+            });
+            
+            // Delete selected items
+            document.getElementById('deleteSelectedBtn').addEventListener('click', function() {
+                if (window.selectedFiles && window.selectedFiles.size > 0) {
+                    showDeleteConfirmation(Array.from(window.selectedFiles));
+                }
+            });
+            
+            // Download selected items
+            document.getElementById('downloadSelectedBtn').addEventListener('click', function() {
+                if (window.selectedFiles && window.selectedFiles.size > 0) {
+                    downloadSelectedItems(Array.from(window.selectedFiles));
+                }
+            });
+            
+            // Close delete confirmation modal
+            document.getElementById('closeConfirmDelete').addEventListener('click', function() {
+                document.getElementById('confirmDeleteModal').style.display = 'none';
+            });
+            
+            document.getElementById('cancelDeleteBtn').addEventListener('click', function() {
+                document.getElementById('confirmDeleteModal').style.display = 'none';
+            });
+            
+            // Confirm delete
+            document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+                deleteSelectedItems();
+            });
+            
+            // Context menu handlers
+            document.getElementById('contextDownload').addEventListener('click', function() {
+                if (!this.classList.contains('disabled') && window.contextMenuItem) {
+                    const path = window.contextMenuItem.dataset.path;
+                    if (path) {
+                        downloadSingleFile(path);
+                    }
+                }
+            });
+            
+            document.getElementById('contextDelete').addEventListener('click', function() {
+                if (!this.classList.contains('disabled') && window.contextMenuItem) {
+                    const path = window.contextMenuItem.dataset.path;
+                    const name = window.contextMenuItem.dataset.name;
+                    if (path && name) {
+                        showDeleteConfirmation([path]);
+                    }
+                }
+            });
+            
+            document.getElementById('contextNewFolder').addEventListener('click', function() {
+                if (!this.classList.contains('disabled')) {
+                    document.getElementById('createFolderModal').style.display = 'block';
+                    document.getElementById('newFolderName').value = '';
+                    document.getElementById('newFolderName').focus();
+                }
+            });
+        });
+        
+        async function createFolder(folderName) {
+            // Close the modal first
+            document.getElementById('createFolderModal').style.display = 'none';
+            
+            try {
+                // Folder creation in S3 involves creating an empty object with a trailing slash
+                const currentPrefix = window.currentFileBrowserPrefix || '';
+                const folderKey = currentPrefix + folderName + '/';
+                
+                // Use presigned URL approach to create the folder
+                const response = await fetch('/generate-presigned-url', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        ...window.fileBrowserCredentials,
+                        bucket: window.currentFileBrowserBucket,
+                        object_key: folderKey,
+                        url_type: 'upload',
+                        expiration: 300  // 5 minutes should be enough
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Create empty object using PUT URL
+                    const putResponse = await fetch(data.put_url, {
+                        method: 'PUT',
+                        body: '', // Empty content for folder
+                        headers: {
+                            'Content-Length': '0'
+                        }
+                    });
+                    
+                    if (putResponse.ok) {
+                        // Refresh the browser to show the new folder
+                        loadFileBrowserContents(window.currentFileBrowserBucket, window.currentFileBrowserPrefix);
+                        alert(`Folder "${folderName}" created successfully!`);
+                    } else {
+                        throw new Error(`Failed to create folder: HTTP ${putResponse.status}`);
+                    }
+                } else {
+                    throw new Error(data.message || 'Failed to generate upload URL');
+                }
+            } catch (error) {
+                console.error('Error creating folder:', error);
+                alert('Error creating folder: ' + error.message);
+            }
+        }
+        
+        function showDeleteConfirmation(items) {
+            const modal = document.getElementById('confirmDeleteModal');
+            const itemsList = document.getElementById('deleteItemsList');
+            
+            let html = '';
+            items.forEach(item => {
+                html += `<div style="padding: 4px 0; border-bottom: 1px solid #eee;">${escapeHtml(item)}</div>`;
+            });
+            
+            itemsList.innerHTML = html;
+            modal.style.display = 'block';
+        }
+        
+        async function deleteSelectedItems() {
+            const modal = document.getElementById('confirmDeleteModal');
+            modal.style.display = 'none';
+            
+            const items = Array.from(window.selectedFiles);
+            let successCount = 0;
+            let errorCount = 0;
+            
+            for (const item of items) {
+                try {
+                    const response = await fetch('/s3-delete-object', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            ...window.fileBrowserCredentials,
+                            bucket: window.currentFileBrowserBucket,
+                            key: item
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        successCount++;
+                    } else {
+                        errorCount++;
+                        console.error(`Failed to delete ${item}:`, data.message);
+                    }
+                } catch (error) {
+                    errorCount++;
+                    console.error(`Error deleting ${item}:`, error);
+                }
+            }
+            
+            // Clear selection
+            window.selectedFiles.clear();
+            updateSelectionUI();
+            
+            // Refresh the browser
+            loadFileBrowserContents(window.currentFileBrowserBucket, window.currentFileBrowserPrefix);
+            
+            // Show result
+            if (errorCount === 0) {
+                alert(`Successfully deleted ${successCount} item${successCount > 1 ? 's' : ''}!`);
+            } else {
+                alert(`Deleted ${successCount} item${successCount > 1 ? 's' : ''}, ${errorCount} failed. Check console for details.`);
+            }
+        }
+        
+        async function downloadSelectedItems(items) {
+            // Filter out folders (keys ending with '/')
+            const files = items.filter(item => !item.endsWith('/'));
+            
+            if (files.length === 0) {
+                alert('No files selected for download. Folders cannot be downloaded directly.');
+                return;
+            }
+            
+            if (files.length === 1) {
+                // Single file download without zip
+                await downloadSingleFile(files[0]);
+            } else {
+                // Multiple files - always use zip
+                await downloadAsZip(files);
+            }
+        }
+        
+        async function downloadSingleFile(key) {
+            try {
+                const response = await fetch('/generate-presigned-url', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        ...window.fileBrowserCredentials,
+                        bucket: window.currentFileBrowserBucket,
+                        object_key: key,
+                        url_type: 'download',
+                        expiration: 300  // 5 minutes
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Open download URL in new tab
+                    window.open(data.download_url, '_blank');
+                } else {
+                    throw new Error(data.message || 'Failed to generate download URL');
+                }
+            } catch (error) {
+                console.error('Error downloading file:', error);
+                alert('Error downloading file: ' + error.message);
+            }
+        }
+        
+        async function downloadAsZip(items) {
+            try {
+                const response = await fetch('/s3-download-zip', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        ...window.fileBrowserCredentials,
+                        bucket: window.currentFileBrowserBucket,
+                        keys: items
+                    })
+                });
+                
+                if (response.ok) {
+                    // Create blob and download
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `s3-files-${Date.now()}.zip`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                } else {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to download files as zip');
+                }
+            } catch (error) {
+                console.error('Error downloading as zip:', error);
+                alert('Error downloading as zip: ' + error.message);
+            }
+        }
+        
+        
+        async function verifyUploadFromJson() {
+            if (!window.uploadJsonFile) return;
+            
+            try {
+                const fileContent = await window.uploadJsonFile.text();
+                const uploadData = JSON.parse(fileContent);
+                
+                if (!uploadData.files || !Array.isArray(uploadData.files)) {
+                    throw new Error('Invalid JSON format: missing files array');
+                }
+                
+                const resultsContainer = document.getElementById('verificationResults');
+                resultsContainer.innerHTML = '<div class="browser-loading">Verifying files...</div>';
+                resultsContainer.style.display = 'block';
+                
+                const results = [];
+                const totalFiles = uploadData.files.length;
+                let processed = 0;
+                
+                for (const fileInfo of uploadData.files) {
+                    try {
+                        // First, check if file exists at expected location
+                        const response = await fetch('/s3-check-file', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                ...window.fileBrowserCredentials,
+                                bucket: window.currentVerificationBucket,
+                                key: fileInfo.s3_key
+                            })
+                        });
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            if (data.success && data.exists) {
+                                const actualSize = data.size;
+                                const expectedSize = fileInfo.file_size_bytes;
+                                
+                                if (actualSize === expectedSize) {
+                                    results.push({
+                                        ...fileInfo,
+                                        verification_status: 'success',
+                                        verification_message: 'File exists at expected location with correct size',
+                                        actual_size: actualSize,
+                                        found_at: fileInfo.s3_key
+                                    });
+                                } else {
+                                    results.push({
+                                        ...fileInfo,
+                                        verification_status: 'warning',
+                                        verification_message: `Size mismatch: expected ${expectedSize}, got ${actualSize}`,
+                                        actual_size: actualSize,
+                                        found_at: fileInfo.s3_key
+                                    });
+                                }
+                            } else {
+                                // File not found at expected location, search for it
+                                const filename = fileInfo.original_filename;
+                                const searchResponse = await fetch('/s3-search-file', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({
+                                        ...window.fileBrowserCredentials,
+                                        bucket: window.currentVerificationBucket,
+                                        filename: filename,
+                                        expected_size: fileInfo.file_size_bytes
+                                    })
+                                });
+                                
+                                if (searchResponse.ok) {
+                                    const searchData = await searchResponse.json();
+                                    if (searchData.success && searchData.matches.length > 0) {
+                                        // Found files with same name
+                                        const exactMatches = searchData.matches.filter(m => m.size_matches);
+                                        
+                                        if (exactMatches.length > 0) {
+                                            // Found file with same name and size at different location
+                                            const match = exactMatches[0];
+                                            results.push({
+                                                ...fileInfo,
+                                                verification_status: 'success',
+                                                verification_message: `File found with correct size but at different location: ${match.key}`,
+                                                actual_size: match.size,
+                                                found_at: match.key,
+                                                path_different: true
+                                            });
+                                        } else {
+                                            // Found file with same name but different size
+                                            const match = searchData.matches[0];
+                                            results.push({
+                                                ...fileInfo,
+                                                verification_status: 'warning',
+                                                verification_message: `File found at ${match.key} but size mismatch: expected ${fileInfo.file_size_bytes}, got ${match.size}`,
+                                                actual_size: match.size,
+                                                found_at: match.key
+                                            });
+                                        }
+                                    } else {
+                                        // File not found anywhere
+                                        results.push({
+                                            ...fileInfo,
+                                            verification_status: 'error',
+                                            verification_message: 'File not found in bucket',
+                                            actual_size: null,
+                                            found_at: null
+                                        });
+                                    }
+                                } else {
+                                    results.push({
+                                        ...fileInfo,
+                                        verification_status: 'error',
+                                        verification_message: 'Search failed',
+                                        actual_size: null,
+                                        found_at: null
+                                    });
+                                }
+                            }
+                        } else {
+                            results.push({
+                                ...fileInfo,
+                                verification_status: 'error',
+                                verification_message: 'Verification request failed',
+                                actual_size: null,
+                                found_at: null
+                            });
+                        }
+                    } catch (error) {
+                        results.push({
+                            ...fileInfo,
+                            verification_status: 'error',
+                            verification_message: `Verification failed: ${error.message}`,
+                            actual_size: null,
+                            found_at: null
+                        });
+                    }
+                    
+                    processed++;
+                    // Update progress
+                    resultsContainer.innerHTML = `<div class="browser-loading">Verifying files... ${processed}/${totalFiles}</div>`;
+                }
+                
+                // Display results
+                displayVerificationResults(results, uploadData.session);
+                
+            } catch (error) {
+                console.error('Error verifying upload:', error);
+                alert('Error processing JSON file: ' + error.message);
+            }
+        }
+        
+        function displayVerificationResults(results, sessionInfo) {
+            const resultsContainer = document.getElementById('verificationResults');
+            
+            const successCount = results.filter(r => r.verification_status === 'success').length;
+            const warningCount = results.filter(r => r.verification_status === 'warning').length;
+            const errorCount = results.filter(r => r.verification_status === 'error').length;
+            
+            let html = `
+                <div class="verification-summary">
+                    <h4>Verification Results</h4>
+                    <p><strong>Total Files:</strong> ${results.length}</p>
+                    <p><strong>✅ Success:</strong> ${successCount} | <strong>⚠️ Warnings:</strong> ${warningCount} | <strong>❌ Errors:</strong> ${errorCount}</p>
+                    ${sessionInfo ? `<p><strong>Original Bucket:</strong> ${sessionInfo.bucket} | <strong>Upload Date:</strong> ${new Date(sessionInfo.timestamp).toLocaleString()}</p>` : ''}
+                </div>
+                <div class="verification-list">
+            `;
+            
+            results.forEach(result => {
+                const statusClass = result.verification_status;
+                const statusIcon = statusClass === 'success' ? '✅' : statusClass === 'warning' ? '⚠️' : '❌';
+                
+                // Add path note if file was found at different location
+                let pathNote = '';
+                if (result.path_different) {
+                    pathNote = ` <span style="color: #856404; font-style: italic;">(Note: Found at different path)</span>`;
+                }
+                
+                html += `
+                    <div class="verification-item ${statusClass}">
+                        <div class="verification-status ${statusClass}">${statusIcon}</div>
+                        <div class="verification-details">
+                            <div class="verification-filename">
+                                Expected: ${result.s3_key}
+                                ${result.found_at && result.found_at !== result.s3_key ? `<br>Found: ${result.found_at}` : ''}
+                            </div>
+                            <div class="verification-info">
+                                ${result.verification_message}${pathNote}
+                                ${result.actual_size !== null ? ` | Size: ${formatFileSize(result.actual_size)}` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            resultsContainer.innerHTML = html;
+        }
+
+        // Clean up intervals when page unloads
+        window.addEventListener('beforeunload', function() {
+            countdownIntervals.forEach(interval => clearInterval(interval));
+        });
+    </script>
+</body>
+</html>

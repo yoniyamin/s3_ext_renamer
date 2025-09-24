@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>S3 Multi-Type File Upload</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; 
+            margin: 0; padding: 2rem; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 { margin: 0; font-weight: 300; }
+        .header p { margin: 10px 0 0 0; opacity: 0.9; }
+        .content { padding: 40px; }
+        
+        .info-box {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #17a2b8;
+            font-size: 14px;
+        }
+        
+        .config-setup {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .config-setup h3 {
+            margin: 0 0 15px 0;
+            color: #0369a1;
+        }
+        
+        #dropzone {
+            border: 2px dashed #888;
+            border-radius: 12px;
+            padding: 3rem 2rem;
+            text-align: center;
+            transition: background 0.2s ease, border-color 0.2s ease;
+            cursor: pointer;
+            margin: 20px 0;
+            background: #f8f9fa;
+        }
+        #dropzone.drag {
+            background: #f2f8ff;
+            border-color: #3b82f6;
+        }
+        #dropzone:hover {
+            border-color: #667eea;
+            background: white;
+        }
+        
+        .upload-options {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .upload-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+        }
+        .upload-btn.secondary {
+            background: linear-gradient(135deg, #6c757d, #545b62);
+        }
+        
+        .row { margin: 15px 0; }
+        .flex { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+        .hint { color: #666; font-size: 0.9rem; }
+        .muted { color: #666; }
+        
+        .file {
+            margin: 8px 0;
+            font-size: 0.95rem;
+            padding: 8px 12px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 3px solid #667eea;
+        }
+        .file progress {
+            width: 200px;
+            height: 14px;
+            vertical-align: middle;
+            margin-left: 10px;
+        }
+        .ok { color: #15803d; font-weight: bold; }
+        .err { color: #b91c1c; font-weight: bold; }
+        .pill { 
+            background: #eef2ff; 
+            color: #3730a3; 
+            border-radius: 999px; 
+            padding: 0.15rem 0.6rem; 
+            font-size: 0.8rem; 
+            margin-left: 8px;
+        }
+        
+        #summary {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #2196f3;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        #fileList {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        textarea {
+            width: 100%;
+            height: 200px;
+            font-family: ui-monospace, Menlo, Consolas, monospace;
+            font-size: 12px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            resize: vertical;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .controls {
+            margin: 20px 0;
+        }
+        .control-group {
+            margin: 15px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .config-preview {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 15px 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .config-preview h4 {
+            margin: 0 0 10px 0;
+            color: #495057;
+        }
+        .config-item {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 8px 0;
+            font-size: 13px;
+        }
+        .config-item .label {
+            font-weight: bold;
+            color: #0369a1;
+        }
+        .config-item .match {
+            color: #6b7280;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div style="text-align: left; margin-bottom: 10px;">
+                <a href="/wizard" style="color: rgba(255,255,255,0.8); text-decoration: none; font-size: 14px;">
+                    ← Back to Wizard
+                </a>
+            </div>
+            <h1>🚀 S3 Multi-Type Upload</h1>
+            <p>Upload different file types to organized folders with drag & drop</p>
+            <p id="timerDisplay" style="margin-top: 10px; font-size: 14px; opacity: 0.8; display: none;">
+                ⏱️ <span id="timeRemaining">Generate URLs to see expiration</span>
+            </p>
+        </div>
+        
+        <div class="content">
+            <div class="info-box">
+                <strong>🎯 Smart Routing:</strong> Files are automatically routed to the correct folder based on type<br>
+                <strong>📁 Organized Storage:</strong> Each file type gets its own subfolder<br>
+                <strong>🔒 Security:</strong> Individual presigned POST policies per file type
+            </div>
+            
+            <div class="config-setup">
+                <h3>📋 Upload Configuration</h3>
+                
+                <div class="control-group">
+                    <label for="keyPrefix">Base Key Prefix (root folder in bucket):</label>
+                    <input type="text" id="keyPrefix" value="uploads/" 
+                           placeholder="e.g., uploads/project-name/" />
+                    <div class="hint">Base folder where all files will be uploaded. Subfolders created automatically.</div>
+                </div>
+                
+                <div class="control-group">
+                    <label for="fileConfigs">File Type Configurations (JSON Array):</label>
+                    <textarea id="fileConfigs" placeholder='[
+  {
+    "label": "images",
+    "match": { "extIn": [".jpg", ".jpeg", ".png", ".gif", ".webp"] },
+    "max_size_mb": 100
+  },
+  {
+    "label": "documents", 
+    "match": { "mimeStartsWith": "application/" },
+    "max_size_mb": 500
+  },
+  {
+    "label": "videos",
+    "match": { "mimeStartsWith": "video/" },
+    "max_size_mb": 5120
+  }
+]'>[
+  {
+    "label": "images",
+    "match": { "extIn": [".jpg", ".jpeg", ".png", ".gif", ".webp"] },
+    "max_size_mb": 100
+  },
+  {
+    "label": "documents", 
+    "match": { "mimeStartsWith": "application/" },
+    "max_size_mb": 500
+  },
+  {
+    "label": "videos",
+    "match": { "mimeStartsWith": "video/" },
+    "max_size_mb": 5120
+  }
+]</textarea>
+                    <div class="hint">
+                        Configure file type routing rules. Supported match types:
+                        <code>extIn</code> (extensions), <code>mimeStartsWith</code>, <code>mimeEquals</code>
+                    </div>
+                </div>
+                
+                <div id="configPreview" class="config-preview" style="display: none;">
+                    <h4>Generated Presigned POST Configurations:</h4>
+                    <div id="configList"></div>
+                </div>
+                
+                <button type="button" class="upload-btn" id="generateBtn">
+                    🔗 Generate Presigned URLs
+                </button>
+            </div>
+            
+            <div id="uploadSection" style="display: none;">
+                <div id="dropzone">
+                    📁 Drop files or folders here, or click to choose files<br>
+                    <div class="hint" style="margin-top: 10px;">
+                        Files will be automatically sorted by type into appropriate folders
+                    </div>
+                </div>
+                
+                <div class="upload-options">
+                    <button type="button" class="upload-btn" id="fileBtn">📄 Choose Files</button>
+                    <button type="button" class="upload-btn secondary" id="folderBtn">📁 Choose Folder</button>
+                </div>
+                
+                <input type="file" id="filePicker" multiple style="display: none;" />
+                <input type="file" id="folderPicker" webkitdirectory directory multiple style="display: none;" />
+                
+                <div id="summary" class="muted"></div>
+                <div id="fileList"></div>
+                
+                <div id="exportSection" style="display: none; margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #28a745;">
+                    <h4 style="margin: 0 0 10px 0; color: #155724;">📊 Export Upload Results</h4>
+                    <p style="margin: 0 0 15px 0; font-size: 14px; color: #6c757d;">
+                        Download a JSON file with details of all uploaded files for verification purposes.
+                    </p>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button type="button" class="upload-btn" id="exportJsonBtn">
+                            📁 Download JSON
+                        </button>
+                        <button type="button" class="upload-btn secondary" id="copyJsonBtn">
+                            📋 Copy to Clipboard
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Hidden credentials form -->
+            <div style="display: none;" id="credentialsConfig">
+                <input type="hidden" id="accessKey" value="">
+                <input type="hidden" id="secretKey" value="">
+                <input type="hidden" id="sessionToken" value="">
+                <input type="hidden" id="region" value="us-east-1">
+                <input type="hidden" id="bucket" value="">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let presignedConfigs = [];
+        let basePrefix = '';
+        let expirationTime = null;
+        let countdownInterval = null;
+        let uploadResults = {
+            session: {},
+            files: []
+        };
+        
+        // DOM elements
+        const dropzone = document.getElementById('dropzone');
+        const folderPicker = document.getElementById('folderPicker');
+        const filePicker = document.getElementById('filePicker');
+        const fileList = document.getElementById('fileList');
+        const summary = document.getElementById('summary');
+        const keyPrefixInput = document.getElementById('keyPrefix');
+        const fileConfigsTextarea = document.getElementById('fileConfigs');
+        const generateBtn = document.getElementById('generateBtn');
+        const configPreview = document.getElementById('configPreview');
+        const configList = document.getElementById('configList');
+        const uploadSection = document.getElementById('uploadSection');
+        
+        // Utility functions
+        function escapeHtml(s) { 
+            return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); 
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        function makeRow(path, size, cfgLabel) {
+            const wrap = document.createElement('div');
+            wrap.className = 'file';
+            const prog = document.createElement('progress');
+            prog.max = size || 1; 
+            prog.value = 0;
+            const label = cfgLabel ? ` <span class="pill">${cfgLabel}</span>` : '';
+            wrap.innerHTML = `${escapeHtml(path)} (${formatFileSize(size)})${label} `;
+            wrap.appendChild(prog);
+            fileList.appendChild(wrap);
+            return { wrap, prog };
+        }
+        
+        // File extension helper
+        function extOf(name) {
+            const i = name.lastIndexOf('.');
+            return i >= 0 ? name.slice(i).toLowerCase() : '';
+        }
+        
+        // File matching logic
+        function pickConfig(configs, file) {
+            // Try by explicit rules first
+            for (const c of configs) {
+                const m = c.match || {};
+                if (m.mimeEquals && file.type && file.type === m.mimeEquals) return c;
+                if (m.mimeStartsWith && file.type && file.type.startsWith(m.mimeStartsWith)) return c;
+                if (Array.isArray(m.extIn) && m.extIn.map(s => s.toLowerCase()).includes(extOf(file.name))) return c;
+            }
+            // Fallback: single config or the first one
+            if (configs.length === 1) return configs[0];
+            return configs[0]; // or return null to force explicit mapping
+        }
+        
+        // S3 Object Key Validation
+        function validateS3ObjectKey(filename) {
+            const filenameSize = new Blob([filename]).size;
+            if (filenameSize > 1024) {
+                return { valid: false, error: `Filename too long (${filenameSize} bytes, max 1024)` };
+            }
+            
+            const invalidChars = /[\x00-\x1f\x7f"'<>&|]/;
+            if (invalidChars.test(filename)) {
+                return { valid: false, error: `Contains invalid characters` };
+            }
+            
+            if (filename.startsWith('/')) {
+                return { valid: false, error: `Cannot start with /` };
+            }
+            
+            const segments = filename.split('/');
+            for (let segment of segments) {
+                const segmentSize = new Blob([segment]).size;
+                if (segmentSize > 255) {
+                    return { valid: false, error: `Directory segment too long` };
+                }
+            }
+            
+            let sanitizedName = filename
+                .replace(/[\x00-\x1f\x7f]/g, '')
+                .replace(/["'<>&|]/g, '_');
+            
+            return { valid: true, sanitizedName: sanitizedName };
+        }
+        
+        // Generate presigned POST configurations
+        async function generatePresignedPosts() {
+            try {
+                // Parse file configurations
+                const fileConfigsText = fileConfigsTextarea.value.trim();
+                let fileConfigs;
+                try {
+                    fileConfigs = JSON.parse(fileConfigsText || '[]');
+                } catch (e) {
+                    alert('Invalid JSON in file configurations: ' + e.message);
+                    return;
+                }
+                
+                if (!Array.isArray(fileConfigs) || fileConfigs.length === 0) {
+                    alert('Please provide at least one file configuration.');
+                    return;
+                }
+                
+                // TODO: Get credentials from user input or session
+                // For now, using placeholder values
+                const requestData = {
+                    access_key: document.getElementById('accessKey').value || 'YOUR_ACCESS_KEY',
+                    secret_key: document.getElementById('secretKey').value || 'YOUR_SECRET_KEY',
+                    session_token: document.getElementById('sessionToken').value || null,
+                    region: document.getElementById('region').value || 'us-east-1',
+                    bucket: document.getElementById('bucket').value || 'your-bucket-name',
+                    base_prefix: keyPrefixInput.value || 'uploads/',
+                    expiration: 3600,
+                    use_timestamp_prefix: true,
+                    file_configs: fileConfigs
+                };
+                
+                generateBtn.disabled = true;
+                generateBtn.textContent = '⏳ Generating...';
+                
+                const response = await fetch('/generate-multi-presigned-posts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    presignedConfigs = result.presigned_configs;
+                    basePrefix = result.base_prefix;
+                    
+                    // Set expiration time and start countdown
+                    if (result.expires_at) {
+                        expirationTime = new Date(result.expires_at);
+                        startExpirationCountdown();
+                        document.getElementById('timerDisplay').style.display = 'block';
+                    }
+                    
+                    // Show configuration preview
+                    displayConfigPreview(presignedConfigs);
+                    configPreview.style.display = 'block';
+                    uploadSection.style.display = 'block';
+                    
+                    generateBtn.textContent = '✅ URLs Generated - Ready to Upload';
+                    generateBtn.disabled = false;
+                    
+                } else {
+                    alert('Failed to generate presigned URLs: ' + result.message);
+                    generateBtn.textContent = '🔗 Generate Presigned URLs';
+                    generateBtn.disabled = false;
+                }
+                
+            } catch (error) {
+                console.error('Error generating presigned URLs:', error);
+                alert('Error generating presigned URLs: ' + error.message);
+                generateBtn.textContent = '🔗 Generate Presigned URLs';
+                generateBtn.disabled = false;
+            }
+        }
+        
+        // Display configuration preview
+        function displayConfigPreview(configs) {
+            configList.innerHTML = '';
+            configs.forEach(config => {
+                const configDiv = document.createElement('div');
+                configDiv.className = 'config-item';
+                
+                let matchDescription = 'No match rules';
+                if (config.match.mimeStartsWith) {
+                    matchDescription = `MIME starts with: ${config.match.mimeStartsWith}`;
+                } else if (config.match.mimeEquals) {
+                    matchDescription = `MIME equals: ${config.match.mimeEquals}`;
+                } else if (config.match.extIn) {
+                    matchDescription = `Extensions: ${config.match.extIn.join(', ')}`;
+                }
+                
+                configDiv.innerHTML = `
+                    <div class="label">${config.label}</div>
+                    <div class="match">${matchDescription}</div>
+                    <div style="font-size: 11px; color: #9ca3af; margin-top: 5px;">
+                        URL: ${config.url}
+                    </div>
+                `;
+                configList.appendChild(configDiv);
+            });
+        }
+        
+        // Upload a single file using presigned POST
+        async function uploadFilePOST(file, relativePath, cfg, prefix) {
+            const key = (prefix || '') + relativePath.replace(/^\/+/, '');
+            
+            // Validate file
+            const validation = validateS3ObjectKey(relativePath);
+            if (!validation.valid) {
+                // Record failed validation
+                uploadResults.files.push({
+                    original_filename: file.name,
+                    sanitized_filename: null,
+                    relative_path: relativePath,
+                    file_size_bytes: file.size,
+                    file_size_formatted: formatFileSize(file.size),
+                    s3_key: null,
+                    mime_type: file.type || 'application/octet-stream',
+                    upload_status: 'validation_failed',
+                    error_message: validation.error,
+                    config_label: cfg.label,
+                    timestamp: new Date().toISOString()
+                });
+                throw new Error(`Invalid filename: ${validation.error}`);
+            }
+            
+            const formData = new FormData();
+            
+            // Add signed fields except 'key' (we set it)
+            Object.entries(cfg.fields || {}).forEach(([k, v]) => {
+                if (k.toLowerCase() !== 'key') formData.append(k, v);
+            });
+            
+            formData.append('key', key);
+            
+            // Include content-type if not restricted by policy
+            if (!('Content-Type' in (cfg.fields || {}))) {
+                formData.append('Content-Type', file.type || 'application/octet-stream');
+            }
+            
+            formData.append('file', file);
+            
+            const { prog, wrap } = makeRow(key, file.size, cfg.label || '');
+            
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', cfg.url, true);
+                
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) prog.value = e.loaded;
+                };
+                
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        prog.value = prog.max;
+                        const success = document.createElement('span');
+                        success.className = 'ok';
+                        success.textContent = ' ✓';
+                        wrap.appendChild(success);
+                        
+                        // Record successful upload
+                        uploadResults.files.push({
+                            original_filename: file.name,
+                            sanitized_filename: validation.sanitizedName,
+                            relative_path: relativePath,
+                            file_size_bytes: file.size,
+                            file_size_formatted: formatFileSize(file.size),
+                            s3_key: key,
+                            mime_type: file.type || 'application/octet-stream',
+                            upload_status: 'success',
+                            error_message: null,
+                            config_label: cfg.label,
+                            timestamp: new Date().toISOString(),
+                            http_status: xhr.status
+                        });
+                        
+                        resolve();
+                    } else {
+                        const error = document.createElement('span');
+                        error.className = 'err';
+                        error.textContent = ` ✗ (HTTP ${xhr.status})`;
+                        wrap.appendChild(error);
+                        
+                        // Record failed upload
+                        uploadResults.files.push({
+                            original_filename: file.name,
+                            sanitized_filename: validation.sanitizedName,
+                            relative_path: relativePath,
+                            file_size_bytes: file.size,
+                            file_size_formatted: formatFileSize(file.size),
+                            s3_key: key,
+                            mime_type: file.type || 'application/octet-stream',
+                            upload_status: 'upload_failed',
+                            error_message: xhr.responseText || `HTTP ${xhr.status}`,
+                            config_label: cfg.label,
+                            timestamp: new Date().toISOString(),
+                            http_status: xhr.status
+                        });
+                        
+                        reject(new Error(xhr.responseText || `HTTP ${xhr.status}`));
+                    }
+                };
+                
+                xhr.onerror = () => {
+                    const error = document.createElement('span');
+                    error.className = 'err';
+                    error.textContent = ' ✗ (network)';
+                    wrap.appendChild(error);
+                    
+                    // Record network error
+                    uploadResults.files.push({
+                        original_filename: file.name,
+                        sanitized_filename: validation.sanitizedName,
+                        relative_path: relativePath,
+                        file_size_bytes: file.size,
+                        file_size_formatted: formatFileSize(file.size),
+                        s3_key: key,
+                        mime_type: file.type || 'application/octet-stream',
+                        upload_status: 'network_error',
+                        error_message: 'Network error during upload',
+                        config_label: cfg.label,
+                        timestamp: new Date().toISOString(),
+                        http_status: 0
+                    });
+                    
+                    reject(new Error('Network error'));
+                };
+                
+                xhr.send(formData);
+            });
+        }
+        
+        // File collection functions (same as before)
+        function filesFromInput(fileList) {
+            return [...fileList].map(f => ({ 
+                file: f, 
+                relativePath: f.webkitRelativePath || f.name 
+            }));
+        }
+        
+        async function filesFromDataTransfer(dt) {
+            const items = [...(dt.items || [])];
+            const out = [];
+            
+            async function traverseEntry(entry, prefix = '') {
+                if (entry.isFile) {
+                    await new Promise((resolve, reject) => {
+                        entry.file(f => {
+                            out.push({ 
+                                file: f, 
+                                relativePath: prefix + entry.name 
+                            });
+                            resolve();
+                        }, reject);
+                    });
+                } else if (entry.isDirectory) {
+                    const reader = entry.createReader();
+                    await new Promise((resolve, reject) => {
+                        const readBatch = () => {
+                            reader.readEntries(async entries => {
+                                if (entries.length === 0) return resolve();
+                                for (const e of entries) {
+                                    await traverseEntry(e, prefix + entry.name + '/');
+                                }
+                                readBatch();
+                            }, reject);
+                        };
+                        readBatch();
+                    });
+                }
+            }
+            
+            for (const item of items) {
+                const entry = item.webkitGetAsEntry && item.webkitGetAsEntry();
+                if (entry) {
+                    await traverseEntry(entry, '');
+                } else if (item.kind === 'file') {
+                    const f = item.getAsFile();
+                    if (f) out.push({ file: f, relativePath: f.name });
+                }
+            }
+            return out;
+        }
+        
+        // Handle file upload process
+        async function handleFileList(pairs) {
+            if (presignedConfigs.length === 0) {
+                alert('Please generate presigned URLs first.');
+                return;
+            }
+            
+            const prefix = keyPrefixInput.value || '';
+            
+            // Initialize upload session metadata
+            uploadResults = {
+                session: {
+                    timestamp: new Date().toISOString(),
+                    bucket: document.getElementById('bucket').value || 'unknown',
+                    base_prefix: prefix,
+                    total_files: pairs.length,
+                    presigned_configs: presignedConfigs.map(cfg => ({
+                        label: cfg.label,
+                        match: cfg.match,
+                        url_domain: new URL(cfg.url).hostname
+                    }))
+                },
+                files: []
+            };
+            
+            summary.style.display = 'block';
+            summary.textContent = `Uploading ${pairs.length} file(s) to prefix "${prefix}"...`;
+            fileList.style.display = 'block';
+            fileList.innerHTML = '';
+            
+            // Hide export section during upload
+            document.getElementById('exportSection').style.display = 'none';
+            
+            let successful = 0, failed = 0;
+            
+            for (const { file, relativePath } of pairs) {
+                try {
+                    const cfg = pickConfig(presignedConfigs, file);
+                    if (!cfg) {
+                        // Record no matching config error
+                        uploadResults.files.push({
+                            original_filename: file.name,
+                            sanitized_filename: null,
+                            relative_path: relativePath,
+                            file_size_bytes: file.size,
+                            file_size_formatted: formatFileSize(file.size),
+                            s3_key: null,
+                            mime_type: file.type || 'application/octet-stream',
+                            upload_status: 'no_matching_config',
+                            error_message: 'No matching presigned config for file type',
+                            config_label: null,
+                            timestamp: new Date().toISOString()
+                        });
+                        throw new Error('No matching presigned config for ' + file.name);
+                    }
+                    await uploadFilePOST(file, relativePath, cfg, prefix);
+                    successful++;
+                } catch (e) {
+                    console.error(`Failed to upload ${relativePath}:`, e);
+                    failed++;
+                }
+            }
+            
+            // Update session summary
+            uploadResults.session.completed_at = new Date().toISOString();
+            uploadResults.session.successful_uploads = successful;
+            uploadResults.session.failed_uploads = failed;
+            uploadResults.session.total_size_bytes = uploadResults.files.reduce((sum, f) => sum + f.file_size_bytes, 0);
+            uploadResults.session.total_size_formatted = formatFileSize(uploadResults.session.total_size_bytes);
+            
+            summary.innerHTML = `Done: <strong>${successful}</strong> succeeded, <strong>${failed}</strong> failed.`;
+            
+            if (failed === 0) {
+                summary.style.borderLeftColor = '#28a745';
+                summary.style.background = '#d4edda';
+                summary.style.color = '#155724';
+            } else if (successful === 0) {
+                summary.style.borderLeftColor = '#dc3545';
+                summary.style.background = '#f8d7da';  
+                summary.style.color = '#721c24';
+            } else {
+                summary.style.borderLeftColor = '#ffc107';
+                summary.style.background = '#fff3cd';
+                summary.style.color = '#856404';
+            }
+            
+            // Show export section if there were any files processed
+            if (uploadResults.files.length > 0) {
+                document.getElementById('exportSection').style.display = 'block';
+            }
+        }
+        
+        // Export functions
+        function generateExportJson() {
+            const exportData = {
+                export_info: {
+                    generated_at: new Date().toISOString(),
+                    export_version: "1.0",
+                    purpose: "S3 upload verification and audit"
+                },
+                ...uploadResults
+            };
+            return JSON.stringify(exportData, null, 2);
+        }
+        
+        function downloadJson() {
+            try {
+                const jsonData = generateExportJson();
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substr(0, 19);
+                const filename = `s3-upload-results-${timestamp}.json`;
+                
+                const blob = new Blob([jsonData], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                // Update button text temporarily
+                const btn = document.getElementById('exportJsonBtn');
+                const originalText = btn.textContent;
+                btn.textContent = '✅ Downloaded';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                }, 2000);
+                
+            } catch (error) {
+                console.error('Error downloading JSON:', error);
+                alert('Error downloading JSON: ' + error.message);
+            }
+        }
+        
+        function copyJsonToClipboard() {
+            try {
+                const jsonData = generateExportJson();
+                
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(jsonData).then(() => {
+                        // Update button text temporarily
+                        const btn = document.getElementById('copyJsonBtn');
+                        const originalText = btn.textContent;
+                        btn.textContent = '✅ Copied';
+                        setTimeout(() => {
+                            btn.textContent = originalText;
+                        }, 2000);
+                    }).catch(err => {
+                        console.error('Clipboard API failed:', err);
+                        fallbackCopyToClipboard(jsonData);
+                    });
+                } else {
+                    fallbackCopyToClipboard(jsonData);
+                }
+            } catch (error) {
+                console.error('Error copying JSON:', error);
+                alert('Error copying JSON: ' + error.message);
+            }
+        }
+        
+        function fallbackCopyToClipboard(text) {
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+                // Update button text temporarily
+                const btn = document.getElementById('copyJsonBtn');
+                const originalText = btn.textContent;
+                btn.textContent = '✅ Copied';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                }, 2000);
+            } catch (err) {
+                console.error('Fallback copy failed:', err);
+                alert('Unable to copy to clipboard. Please manually copy the JSON from the console.');
+                console.log('Upload Results JSON:', text);
+            } finally {
+                document.body.removeChild(textArea);
+            }
+        }
+        
+        // Event Handlers
+        generateBtn.addEventListener('click', generatePresignedPosts);
+        document.getElementById('exportJsonBtn').addEventListener('click', downloadJson);
+        document.getElementById('copyJsonBtn').addEventListener('click', copyJsonToClipboard);
+        
+        document.getElementById('fileBtn').addEventListener('click', () => filePicker.click());
+        document.getElementById('folderBtn').addEventListener('click', () => folderPicker.click());
+        
+        dropzone.addEventListener('click', () => filePicker.click());
+        
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('drag');
+        });
+        
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('drag');
+        });
+        
+        dropzone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('drag');
+            try {
+                const pairs = await filesFromDataTransfer(e.dataTransfer);
+                if (pairs.length > 0) {
+                    handleFileList(pairs);
+                }
+            } catch (error) {
+                console.error('Error processing dropped files:', error);
+                alert('Error processing dropped files: ' + error.message);
+            }
+        });
+        
+        filePicker.addEventListener('change', (e) => {
+            const files = [...e.target.files].map(f => ({ 
+                file: f, 
+                relativePath: f.name 
+            }));
+            if (files.length > 0) {
+                handleFileList(files);
+            }
+        });
+        
+        folderPicker.addEventListener('change', (e) => {
+            const pairs = filesFromInput(e.target.files);
+            if (pairs.length > 0) {
+                handleFileList(pairs);
+            }
+        });
+        
+        // Dynamic expiration countdown for multi-upload
+        function startExpirationCountdown() {
+            const timeRemainingElement = document.getElementById('timeRemaining');
+            
+            if (!expirationTime) {
+                timeRemainingElement.textContent = 'Generate URLs to see expiration';
+                return;
+            }
+            
+            // Clear any existing interval
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+            
+            function updateCountdown() {
+                const now = new Date();
+                const timeLeft = expirationTime - now;
+                
+                if (timeLeft <= 0) {
+                    timeRemainingElement.textContent = 'EXPIRED - URLs no longer valid';
+                    timeRemainingElement.style.color = '#dc3545';
+                    
+                    // Disable upload functionality
+                    dropzone.style.opacity = '0.5';
+                    dropzone.style.pointerEvents = 'none';
+                    dropzone.style.cursor = 'not-allowed';
+                    
+                    const fileBtn = document.getElementById('fileBtn');
+                    const folderBtn = document.getElementById('folderBtn');
+                    if (fileBtn) fileBtn.disabled = true;
+                    if (folderBtn) folderBtn.disabled = true;
+                    
+                    // Clear the interval
+                    if (countdownInterval) {
+                        clearInterval(countdownInterval);
+                        countdownInterval = null;
+                    }
+                    return;
+                }
+                
+                const hours = Math.floor(timeLeft / (1000 * 60 * 60));
+                const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+                
+                let timeString = 'URLs expire in ';
+                if (hours > 0) timeString += `${hours}h `;
+                if (minutes > 0) timeString += `${minutes}m `;
+                timeString += `${seconds}s`;
+                
+                timeRemainingElement.textContent = timeString;
+                
+                // Color coding based on time remaining
+                if (timeLeft < 300000) { // < 5 minutes
+                    timeRemainingElement.style.color = '#dc3545';
+                } else if (timeLeft < 900000) { // < 15 minutes
+                    timeRemainingElement.style.color = '#fd7e14';
+                } else {
+                    timeRemainingElement.style.color = 'inherit';
+                }
+            }
+            
+            updateCountdown();
+            countdownInterval = setInterval(updateCountdown, 1000);
+        }
+        
+        // Load credentials from session storage or elsewhere if available
+        document.addEventListener('DOMContentLoaded', () => {
+            // TODO: Load saved credentials
+            // Example: document.getElementById('accessKey').value = sessionStorage.getItem('aws_access_key') || '';
+        });
+    </script>
+    
+    <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px; font-size: 14px;">
+        <h4>Important Notes:</h4>
+        <ul>
+            <li><strong>CORS Configuration:</strong> Your S3 bucket must allow POST from your origin and expose the ETag header.</li>
+            <li><strong>Policy Requirements:</strong> Each POST policy includes <code>["starts-with","$key","&lt;prefix&gt;"]</code> to allow dynamic key generation.</li>
+            <li><strong>File Size Limits:</strong> S3 supports up to 5GB per file for single uploads. Limits enforced both client-side and in the S3 policy via <code>content-length-range</code>.</li>
+            <li><strong>File Routing:</strong> Files are automatically routed to appropriate configurations based on match rules.</li>
+        </ul>
+    </div>
+    
+</body>
+</html>
