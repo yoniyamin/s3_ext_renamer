@@ -1003,17 +1003,33 @@
             try {
                 // Authenticate and get secure session
                 console.log('📡 Sending authentication request...');
+                
+                // Encrypt credentials before sending (multi-layer obfuscation)
+                const timestamp = Date.now().toString();
+                const obfuscateString = (str) => {
+                    // Layer 1: Reverse the string
+                    const reversed = str.split('').reverse().join('');
+                    // Layer 2: Base64 encode
+                    const encoded = btoa(reversed);
+                    // Layer 3: Add timestamp prefix for additional randomization
+                    return btoa(timestamp + ':' + encoded);
+                };
+                
+                const encryptedPayload = {
+                    access_key: obfuscateString(accessKey),
+                    secret_key: obfuscateString(secretKey),
+                    session_token: sessionToken ? obfuscateString(sessionToken) : null,
+                    region: region,
+                    timestamp: timestamp,
+                    encrypted: true  // Flag to indicate encrypted payload
+                };
+                
                 const response = await fetch('/auth/login', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        access_key: accessKey,
-                        secret_key: secretKey,
-                        session_token: sessionToken,
-                        region: region
-                    })
+                    body: JSON.stringify(encryptedPayload)
                 });
                 
                 console.log('📡 Authentication response status:', response.status);

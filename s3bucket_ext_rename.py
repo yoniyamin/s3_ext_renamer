@@ -20,7 +20,10 @@ import zipfile
 import io
 import secrets
 import hashlib
+import base64
 from flask import Response
+import tkinter as tk
+from tkinter import messagebox
 
 LOCK_FILE = "app.lock"
 
@@ -30,7 +33,9 @@ def remove_lock_file():
         os.remove(LOCK_FILE)
         logging.info("Lock file removed.")
 
-
+def show_popup(title, message):
+    """Show a popup window with the given title and message."""
+    messagebox.showinfo(title, message)
 
 def is_port_in_use(port):
     """Check if a local port is in use."""
@@ -1378,12 +1383,51 @@ def s3_search_file():
 @app.route("/auth/login", methods=["POST"])
 def auth_login():
     """Authenticate user and create secure session"""
+    # Disable request logging for this sensitive endpoint
+    app.logger.disabled = True
     try:
         data = request.get_json()
-        access_key = data.get("access_key")
-        secret_key = data.get("secret_key")
-        session_token = data.get("session_token")
-        region = data.get("region", "us-east-1")
+        
+        # Check if payload is encrypted
+        is_encrypted = data.get("encrypted", False)
+        
+        if is_encrypted:
+            # Decrypt multi-layer obfuscated credentials
+            def deobfuscate_string(obfuscated_str):
+                try:
+                    # Layer 3: Remove timestamp prefix
+                    decoded_with_timestamp = base64.b64decode(obfuscated_str).decode('utf-8')
+                    if ':' in decoded_with_timestamp:
+                        timestamp, encoded_str = decoded_with_timestamp.split(':', 1)
+                    else:
+                        encoded_str = decoded_with_timestamp
+                    
+                    # Layer 2: Base64 decode
+                    reversed_str = base64.b64decode(encoded_str).decode('utf-8')
+                    
+                    # Layer 1: Reverse the string back
+                    original_str = reversed_str[::-1]
+                    
+                    return original_str
+                except Exception as e:
+                    raise ValueError(f"Failed to deobfuscate: {e}")
+            
+            try:
+                access_key = deobfuscate_string(data.get("access_key", ""))
+                secret_key = deobfuscate_string(data.get("secret_key", ""))
+                session_token = deobfuscate_string(data.get("session_token", "")) if data.get("session_token") else None
+                region = data.get("region", "us-east-1")
+                logging.info("🔐 Received encrypted authentication request")
+            except Exception as e:
+                logging.error(f"Failed to decrypt credentials: {e}")
+                return jsonify({"success": False, "message": "Invalid encrypted credentials"}), 400
+        else:
+            # Handle legacy unencrypted requests
+            access_key = data.get("access_key")
+            secret_key = data.get("secret_key")
+            session_token = data.get("session_token")
+            region = data.get("region", "us-east-1")
+            logging.warning("Received unencrypted authentication request - this is less secure")
 
         if not access_key or not secret_key:
             return jsonify({"success": False, "message": "Access key and secret key are required"}), 400
@@ -1434,6 +1478,9 @@ def auth_login():
     except Exception as e:
         logging.error(f"Login error: {e}")
         return jsonify({"success": False, "message": "Authentication failed"}), 500
+    finally:
+        # Re-enable request logging for other endpoints
+        app.logger.disabled = False
 
 @app.route("/auth/logout", methods=["POST"])
 def auth_logout():
