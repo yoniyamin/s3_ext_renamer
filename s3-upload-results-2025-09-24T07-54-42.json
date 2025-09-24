@@ -1,0 +1,99 @@
+{
+  "export_info": {
+    "generated_at": "2025-09-24T07:54:42.371Z",
+    "export_version": "1.0",
+    "purpose": "S3 upload verification and audit"
+  },
+  "session": {
+    "timestamp": "2025-09-24T07:54:33.516Z",
+    "bucket": "qmi-bucket-68b19c7d07b89f1a743c626a",
+    "base_prefix": "doug/",
+    "total_files": 6,
+    "upload_method": "single_presigned_post",
+    "completed_at": "2025-09-24T07:54:35.192Z",
+    "successful_uploads": 6,
+    "failed_uploads": 0,
+    "total_size_bytes": 16279,
+    "total_size_formatted": "15.9 KB"
+  },
+  "files": [
+    {
+      "original_filename": "README.md",
+      "sanitized_filename": "change-mask/README.md",
+      "relative_path": "change-mask/README.md",
+      "file_size_bytes": 7160,
+      "file_size_formatted": "6.99 KB",
+      "s3_key": "doug/change-mask/README.md",
+      "mime_type": "application/octet-stream",
+      "upload_status": "success",
+      "error_message": null,
+      "timestamp": "2025-09-24T07:54:34.130Z",
+      "http_status": 204
+    },
+    {
+      "original_filename": "change_mask.sql",
+      "sanitized_filename": "change-mask/sqlserver/change_mask.sql",
+      "relative_path": "change-mask/sqlserver/change_mask.sql",
+      "file_size_bytes": 2720,
+      "file_size_formatted": "2.66 KB",
+      "s3_key": "doug/change-mask/sqlserver/change_mask.sql",
+      "mime_type": "application/octet-stream",
+      "upload_status": "success",
+      "error_message": null,
+      "timestamp": "2025-09-24T07:54:34.340Z",
+      "http_status": 204
+    },
+    {
+      "original_filename": "change_mask.sql",
+      "sanitized_filename": "change-mask/snowflake/change_mask.sql",
+      "relative_path": "change-mask/snowflake/change_mask.sql",
+      "file_size_bytes": 1516,
+      "file_size_formatted": "1.48 KB",
+      "s3_key": "doug/change-mask/snowflake/change_mask.sql",
+      "mime_type": "application/octet-stream",
+      "upload_status": "success",
+      "error_message": null,
+      "timestamp": "2025-09-24T07:54:34.553Z",
+      "http_status": 204
+    },
+    {
+      "original_filename": "change_mask.sql",
+      "sanitized_filename": "change-mask/postgres/change_mask.sql",
+      "relative_path": "change-mask/postgres/change_mask.sql",
+      "file_size_bytes": 1150,
+      "file_size_formatted": "1.12 KB",
+      "s3_key": "doug/change-mask/postgres/change_mask.sql",
+      "mime_type": "application/octet-stream",
+      "upload_status": "success",
+      "error_message": null,
+      "timestamp": "2025-09-24T07:54:34.766Z",
+      "http_status": 204
+    },
+    {
+      "original_filename": "change_mask.sql",
+      "sanitized_filename": "change-mask/oracle/change_mask.sql",
+      "relative_path": "change-mask/oracle/change_mask.sql",
+      "file_size_bytes": 1975,
+      "file_size_formatted": "1.93 KB",
+      "s3_key": "doug/change-mask/oracle/change_mask.sql",
+      "mime_type": "application/octet-stream",
+      "upload_status": "success",
+      "error_message": null,
+      "timestamp": "2025-09-24T07:54:34.976Z",
+      "http_status": 204
+    },
+    {
+      "original_filename": "change_mask.sql",
+      "sanitized_filename": "change-mask/databricks/change_mask.sql",
+      "relative_path": "change-mask/databricks/change_mask.sql",
+      "file_size_bytes": 1758,
+      "file_size_formatted": "1.72 KB",
+      "s3_key": "doug/change-mask/databricks/change_mask.sql",
+      "mime_type": "application/octet-stream",
+      "upload_status": "success",
+      "error_message": null,
+      "timestamp": "2025-09-24T07:54:35.192Z",
+      "http_status": 204
+    }
+  ]
+}

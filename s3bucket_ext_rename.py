@@ -1552,10 +1552,13 @@ def wizard_extension_renamer():
         # Handle both form data and JSON data
         if request.content_type == 'application/json':
             data = request.get_json()
-            access_key = data.get("access_key")
-            secret_key = data.get("secret_key")
-            session_token = data.get("session_token")
-            region = data.get("region", "us-east-1")
+            
+            # Get credentials from secure session
+            credentials = get_session_credentials(data)
+            if not credentials:
+                logging.warning("Invalid or missing session for extension renamer")
+                return jsonify({"success": False, "message": "Invalid or expired session"}), 401
+            
             bucket = data.get("bucket")
             prefix = data.get("prefix", "")
             old_ext = data.get("old_ext")
@@ -1563,6 +1566,7 @@ def wizard_extension_renamer():
             keep_original = data.get("keep_original", False)
             recursive = data.get("recursive", True)
         else:
+            # Form submission still uses old method for backward compatibility
             access_key = request.form["access_key"]
             secret_key = request.form["secret_key"]
             session_token = request.form.get("session_token")
@@ -1570,6 +1574,14 @@ def wizard_extension_renamer():
             bucket = request.form["bucket"]
             prefix = request.form.get("prefix", "")
             old_ext = request.form["old_ext"]
+            
+            # Create credentials object for form submissions
+            credentials = {
+                "access_key": access_key,
+                "secret_key": secret_key,
+                "session_token": session_token,
+                "region": region
+            }
             new_ext = request.form["new_ext"]
             keep_original = "keep_original" in request.form
             recursive = "recursive" in request.form
@@ -1577,10 +1589,10 @@ def wizard_extension_renamer():
         logging.info(f"Wizard extension renamer request for bucket '{bucket}' with prefix '{prefix}'.")
 
         # Validate required fields
-        if not access_key or not secret_key or not bucket or not old_ext or not new_ext:
+        if not credentials["access_key"] or not credentials["secret_key"] or not bucket or not old_ext or not new_ext:
             return jsonify({
                 "success": False,
-                "message": "Missing required fields: access_key, secret_key, bucket, old_ext, new_ext"
+                "message": "Missing required fields: credentials, bucket, old_ext, new_ext"
             })
 
         # Validate extensions
@@ -1589,14 +1601,14 @@ def wizard_extension_renamer():
         if not new_ext.startswith('.'):
             new_ext = '.' + new_ext
 
-        # Create S3 session
+        # Create S3 session using stored credentials
         session_kwargs = {
-            "aws_access_key_id": access_key,
-            "aws_secret_access_key": secret_key,
-            "region_name": region
+            "aws_access_key_id": credentials["access_key"],
+            "aws_secret_access_key": credentials["secret_key"],
+            "region_name": credentials["region"]
         }
-        if session_token:
-            session_kwargs["aws_session_token"] = session_token
+        if credentials.get("session_token"):
+            session_kwargs["aws_session_token"] = credentials["session_token"]
 
         session = boto3.Session(**session_kwargs)
         s3 = session.client("s3")
@@ -1654,17 +1666,19 @@ def wizard_extension_renamer_execute():
                 "message": "No files selected for processing."
             })
         
+        # Get credentials from secure session
+        credentials = get_session_credentials(config)
+        if not credentials:
+            logging.warning("Invalid or missing session for extension renamer execute")
+            return jsonify({"success": False, "message": "Invalid or expired session"}), 401
+        
         # Extract configuration
-        access_key = config.get("access_key")
-        secret_key = config.get("secret_key")
-        session_token = config.get("session_token")
-        region = config.get("region", "us-east-1")
         bucket = config.get("bucket")
         old_ext = config.get("old_ext")
         new_ext = config.get("new_ext")
         keep_original = config.get("keep_original", False)
         
-        if not all([access_key, secret_key, bucket, old_ext, new_ext]):
+        if not all([bucket, old_ext, new_ext]):
             return jsonify({
                 "success": False,
                 "message": "Missing required configuration parameters."
@@ -1672,14 +1686,14 @@ def wizard_extension_renamer_execute():
         
         logging.info(f"Wizard: Executing rename operation on {len(selected_files)} files in bucket '{bucket}'.")
         
-        # Create S3 session
+        # Create S3 session using stored credentials
         session_kwargs = {
-            "aws_access_key_id": access_key,
-            "aws_secret_access_key": secret_key,
-            "region_name": region
+            "aws_access_key_id": credentials["access_key"],
+            "aws_secret_access_key": credentials["secret_key"],
+            "region_name": credentials["region"]
         }
-        if session_token:
-            session_kwargs["aws_session_token"] = session_token
+        if credentials.get("session_token"):
+            session_kwargs["aws_session_token"] = credentials["session_token"]
             
         session = boto3.Session(**session_kwargs)
         s3 = session.client("s3")

@@ -601,7 +601,7 @@
         let selectedBucket = '';
 
         // Wizard navigation
-        function nextStep() {
+        async function nextStep() {
             console.log('=== nextStep() START ===');
             console.log('currentStep:', currentStep);
             console.log('selectedAction:', selectedAction);
@@ -622,7 +622,7 @@
                 
                 if (currentStep === 2) {
                     console.log('currentStep === 2, checking validateCredentials()');
-                    const credentialsValid = validateCredentials();
+                    const credentialsValid = await validateCredentials();
                     console.log('validateCredentials() returned:', credentialsValid);
                     if (!credentialsValid) {
                         console.log('Failed: validateCredentials() returned false');
@@ -986,16 +986,68 @@
             });
         }
 
-        function validateCredentials() {
+        async function validateCredentials() {
             const accessKey = document.getElementById('wizard-access-key').value;
             const secretKey = document.getElementById('wizard-secret-key').value;
+            const sessionToken = document.getElementById('wizard-session-token').value;
             const region = document.getElementById('wizard-region').value;
             
+            // First validate that required fields are filled
             if (!accessKey || !secretKey || !region) {
                 alert('Please fill in all required credential fields');
                 return false;
             }
-            return true;
+
+            console.log('🔐 Authenticating credentials:', { accessKey: accessKey?.substring(0,8) + '...', region });
+            
+            try {
+                // Authenticate and get secure session
+                console.log('📡 Sending authentication request...');
+                const response = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        access_key: accessKey,
+                        secret_key: secretKey,
+                        session_token: sessionToken,
+                        region: region
+                    })
+                });
+                
+                console.log('📡 Authentication response status:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('❌ Authentication failed with status:', response.status, errorText);
+                    alert(`Authentication failed: ${response.status} - Invalid AWS credentials`);
+                    return false;
+                }
+                
+                const data = await response.json();
+                console.log('📄 Authentication response data:', data);
+                
+                if (data.success) {
+                    // Store ONLY the session ID (no credentials!)
+                    window.sessionId = data.session_id;
+                    
+                    console.log('✅ Secure session created:', data.session_id?.substring(0,8) + '...', data.user_info);
+                    
+                    // Save credentials for this session (useful for UI)
+                    saveCredentialsToSession();
+                    
+                    return true;
+                } else {
+                    console.error('❌ Authentication unsuccessful:', data);
+                    alert('Authentication failed: ' + (data.message || 'Unknown error'));
+                    return false;
+                }
+            } catch (error) {
+                console.error('💥 Authentication error:', error);
+                alert('Failed to authenticate: ' + error.message);
+                return false;
+            }
         }
 
         // Action selection
@@ -1134,10 +1186,7 @@
                 console.log('URL type:', urlType);
                 
                 formData = {
-                    access_key: document.getElementById('wizard-access-key').value,
-                    secret_key: document.getElementById('wizard-secret-key').value,
-                    session_token: document.getElementById('wizard-session-token').value,
-                    region: document.getElementById('wizard-region').value,
+                    session_id: window.sessionId,
                     bucket: document.getElementById('wizard-bucket').value,
                     object_key: document.getElementById('wizard-object-key').value || "",  // Allow empty for root
                     url_type: urlType,
@@ -1163,8 +1212,8 @@
                     }
                 }
 
-                if (!formData.access_key || !formData.secret_key) {
-                    alert('Please fill in all required credentials');
+                if (!formData.session_id) {
+                    alert('Authentication session not found. Please go back and re-enter your credentials.');
                     return;
                 }
                 
@@ -1270,9 +1319,13 @@
         function previewExtensionRename() {
             console.log('previewExtensionRename function called');
             
+            if (!window.sessionId) {
+                alert('Authentication session not found. Please go back and re-enter your credentials.');
+                return;
+            }
+            
             const formData = {
-                access_key: document.getElementById('wizard-access-key').value,
-                secret_key: document.getElementById('wizard-secret-key').value,
+                session_id: window.sessionId,
                 bucket: document.getElementById('wizard-rename-bucket').value,
                 prefix: document.getElementById('wizard-rename-prefix').value,
                 old_ext: document.getElementById('wizard-old-ext').value,
@@ -1283,7 +1336,7 @@
 
             console.log('Form data collected:', formData);
 
-            if (!formData.access_key || !formData.secret_key || !formData.bucket || !formData.old_ext || !formData.new_ext) {
+            if (!formData.session_id || !formData.bucket || !formData.old_ext || !formData.new_ext) {
                 alert('Please fill in all required fields');
                 return;
             }
@@ -1504,17 +1557,17 @@
             return;
         }
         
-        // Get stored configuration and add current credentials
+        // Get stored configuration and use session authentication
         const formData = window.renameFormData;
-        const sessionToken = document.getElementById('wizard-session-token')?.value || '';
-        const region = document.getElementById('wizard-region')?.value || 'us-east-1';
+        
+        if (!window.sessionId) {
+            alert('Authentication session not found. Please go back and re-enter your credentials.');
+            return;
+        }
         
         const executeData = {
             config: {
-                access_key: document.getElementById('wizard-access-key').value,
-                secret_key: document.getElementById('wizard-secret-key').value,
-                session_token: sessionToken,
-                region: region,
+                session_id: window.sessionId,
                 bucket: formData.bucket,
                 old_ext: formData.old_ext,
                 new_ext: formData.new_ext,
@@ -1826,11 +1879,8 @@
 
         // Bucket and Object browsing functionality
         document.getElementById('browse-buckets-btn').addEventListener('click', function() {
-            const accessKey = document.getElementById('wizard-access-key').value;
-            const secretKey = document.getElementById('wizard-secret-key').value;
-            
-            if (!accessKey || !secretKey) {
-                alert('Please enter AWS credentials first');
+            if (!window.sessionId) {
+                alert('Please authenticate first by clicking "Next" from the credentials step');
                 return;
             }
             
@@ -1842,11 +1892,8 @@
 
         // Extension renamer bucket browse button
         document.getElementById('browse-rename-buckets-btn').addEventListener('click', function() {
-            const accessKey = document.getElementById('wizard-access-key').value;
-            const secretKey = document.getElementById('wizard-secret-key').value;
-            
-            if (!accessKey || !secretKey) {
-                alert('Please enter AWS credentials first');
+            if (!window.sessionId) {
+                alert('Please authenticate first by clicking "Next" from the credentials step');
                 return;
             }
             
@@ -1955,30 +2002,42 @@
             }
         });
 
-        function loadBuckets() {
-            const accessKey = document.getElementById('wizard-access-key').value;
-            const secretKey = document.getElementById('wizard-secret-key').value;
-            const sessionToken = document.getElementById('wizard-session-token').value;
-            const region = document.getElementById('wizard-region').value;
+        async function loadBuckets() {
+            console.log('🪣 Loading buckets for browser with session:', window.sessionId?.substring(0,8) + '...');
+            
+            if (!window.sessionId) {
+                console.error('❌ No session ID available for loading buckets');
+                alert('Authentication session not found. Please go back and re-enter your credentials.');
+                return;
+            }
             
             const contentDiv = document.getElementById('bucketBrowserContent');
             const searchContainer = document.getElementById('bucketSearchContainer');
             contentDiv.innerHTML = '<div class="browser-loading">Loading buckets...</div>';
             
-            fetch('/list-buckets', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    access_key: accessKey,
-                    secret_key: secretKey,
-                    session_token: sessionToken,
-                    region: region
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
+            try {
+                console.log('📡 Sending list-buckets request...');
+                const response = await fetch('/list-buckets', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        session_id: window.sessionId
+                    })
+                });
+                
+                console.log('📡 List-buckets response status:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('❌ List-buckets failed with status:', response.status, errorText);
+                    throw new Error(`Request failed: ${response.status} - ${errorText}`);
+                }
+                
+                const data = await response.json();
+                console.log('📄 List-buckets response data:', data);
+                
                 if (data.success) {
                     // Show search container
                     searchContainer.style.display = 'block';
@@ -1999,12 +2058,13 @@
                         displayBuckets(filteredBuckets);
                     });
                 } else {
+                    console.error('❌ Failed to load buckets:', data.message);
                     contentDiv.innerHTML = `<div class="error-message">${data.message}</div>`;
                 }
-            })
-            .catch(error => {
+            } catch (error) {
+                console.error('💥 Error loading buckets:', error);
                 contentDiv.innerHTML = `<div class="error-message">Error loading buckets: ${error.message}</div>`;
-            });
+            }
         }
 
         function displayBuckets(buckets) {
@@ -2031,35 +2091,47 @@
             selectedBucket = bucketName;
         }
 
-        function loadObjects(prefix) {
-            const accessKey = document.getElementById('wizard-access-key').value;
-            const secretKey = document.getElementById('wizard-secret-key').value;
-            const sessionToken = document.getElementById('wizard-session-token').value;
-            const region = document.getElementById('wizard-region').value;
-            const bucket = selectedBucket;
+        async function loadObjects(prefix) {
+            console.log('📁 Loading objects with session:', window.sessionId?.substring(0,8) + '...');
             
+            if (!window.sessionId) {
+                console.error('❌ No session ID available for loading objects');
+                alert('Authentication session not found. Please go back and re-enter your credentials.');
+                return;
+            }
+            
+            const bucket = selectedBucket;
             const contentDiv = document.getElementById('objectBrowserContent');
             const pathDiv = document.getElementById('currentObjectPath');
             
             contentDiv.innerHTML = '<div class="browser-loading">Loading...</div>';
             pathDiv.innerHTML = `Current path: <strong>/${prefix}</strong>`;
             
-            fetch('/browse-folders', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    access_key: accessKey,
-                    secret_key: secretKey,
-                    session_token: sessionToken,
-                    region: region,
-                    bucket: bucket,
-                    prefix: prefix
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
+            try {
+                console.log('📡 Sending browse-folders request...');
+                const response = await fetch('/browse-folders', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        session_id: window.sessionId,
+                        bucket: bucket,
+                        prefix: prefix
+                    })
+                });
+                
+                console.log('📡 Browse-folders response status:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('❌ Browse-folders failed with status:', response.status, errorText);
+                    throw new Error(`Request failed: ${response.status} - ${errorText}`);
+                }
+                
+                const data = await response.json();
+                console.log('📄 Browse-folders response data:', data);
+                
                 if (data.success) {
                     let html = '';
                     
@@ -2108,12 +2180,13 @@
                     
                     contentDiv.innerHTML = html;
                 } else {
+                    console.error('❌ Failed to load objects:', data.message);
                     contentDiv.innerHTML = `<div class="error-message">${data.message}</div>`;
                 }
-            })
-            .catch(error => {
+            } catch (error) {
+                console.error('💥 Error loading objects:', error);
                 contentDiv.innerHTML = `<div class="error-message">Error loading objects: ${error.message}</div>`;
-            });
+            }
         }
 
         function navigateToObjectFolder(prefix) {
@@ -2519,63 +2592,21 @@
 
         // File Browser Functions
         async function copyCredentialsToFileBrowserForm() {
-            const accessKey = document.getElementById('wizard-access-key').value;
-            const secretKey = document.getElementById('wizard-secret-key').value;
-            const sessionToken = document.getElementById('wizard-session-token').value;
-            const region = document.getElementById('wizard-region').value;
+            // Authentication is already done in validateCredentials()
+            // Just load buckets for Select2 dropdown
+            console.log('🪣 Setting up file browser with existing session:', window.sessionId?.substring(0,8) + '...');
             
-            console.log('🔐 Starting authentication with:', { accessKey: accessKey?.substring(0,8) + '...', region });
-            
-            // Validate credentials are provided
-            if (!accessKey || !secretKey) {
-                alert('Please enter your AWS credentials before proceeding.');
+            if (!window.sessionId) {
+                console.error('❌ No session ID available - authentication may have failed');
+                alert('Authentication session not found. Please go back and re-enter your credentials.');
                 return;
             }
             
             try {
-                // Authenticate and get secure session
-                console.log('📡 Sending authentication request...');
-                const response = await fetch('/auth/login', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        access_key: accessKey,
-                        secret_key: secretKey,
-                        session_token: sessionToken,
-                        region: region
-                    })
-                });
-                
-                console.log('📡 Authentication response status:', response.status);
-                
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('❌ Authentication failed with status:', response.status, errorText);
-                    throw new Error(`Authentication failed: ${response.status} - ${errorText}`);
-                }
-                
-                const data = await response.json();
-                console.log('📄 Authentication response data:', data);
-                
-                if (data.success) {
-                    // Store ONLY the session ID (no credentials!)
-                    window.sessionId = data.session_id;
-                    
-                    console.log('✅ Secure session created:', data.session_id?.substring(0,8) + '...', data.user_info);
-                    
-                    // Load buckets for Select2 dropdown
-                    await loadBucketsForSelect2();
-                } else {
-                    console.error('❌ Authentication unsuccessful:', data);
-                    alert('Authentication failed: ' + (data.message || 'Unknown error'));
-                    throw new Error(data.message || 'Authentication failed');
-                }
+                await loadBucketsForSelect2();
             } catch (error) {
-                console.error('💥 Authentication error:', error);
-                alert('Failed to authenticate: ' + error.message);
-                // Don't proceed to load buckets if authentication failed
+                console.error('💥 Error setting up file browser:', error);
+                alert('Failed to set up file browser: ' + error.message);
             }
         }
         
