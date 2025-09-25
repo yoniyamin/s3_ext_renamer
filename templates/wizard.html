@@ -449,41 +449,99 @@
         </div>
         
         <!-- File Browser Modal -->
-        <div id="fileBrowserModal" class="modal" style="display: none;">
+        <div id="fileBrowserModal" class="modal file-browser-modal" style="display: none;">
             <div class="modal-content" style="width: 90%; max-width: 1200px; height: 85vh;">
                 <div class="modal-header">
                     <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                         <div>
                             <h3 style="margin: 0;">S3 File Browser</h3>
-                            <div id="fileBrowserPath" style="font-size: 14px; opacity: 0.8; margin-top: 3px; font-family: 'Consolas', 'Monaco', 'Courier New', monospace;">
-                                <span id="currentBucket">-</span> : <span id="currentPath">/</span>
-                            </div>
                         </div>
                         <div style="display: flex; align-items: center; gap: 15px;">
                             <button type="button" class="btn-minimal" id="refreshBrowser">
-                                🔄 Refresh
+                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24" style="margin-right: 6px;">
+                                    <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                                </svg>
+                                Refresh
                             </button>
                             <span class="close" id="closeFileBrowser">&times;</span>
                         </div>
                     </div>
                 </div>
                 <div class="modal-body" style="display: flex; flex-direction: column; height: calc(100% - 80px); padding: 15px;">
-                    <!-- Selection Info -->
-                    <div id="selectionInfo" class="selection-bar" style="display: flex; margin-bottom: 10px; padding: 10px; background: #e3f2fd; border-radius: 6px; justify-content: space-between; align-items: center;">
-                        <span id="selectionCount">0 items selected</span>
-                        <div class="selection-actions" style="display: flex; gap: 8px;">
+                    <!-- Path Display - Full Width -->
+                    <div class="path-bar" style="margin-bottom: 10px; padding: 12px; background: #f8f9fa; border: 1px solid #e1e8ed; border-radius: 6px;">
+                        <div id="fileBrowserPath" onclick="copyPathToClipboard()" title="Click to copy path to clipboard" 
+                             style="display: flex; align-items: center; gap: 4px; font-size: 14px; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; background: white; padding: 8px 12px; border-radius: 4px; border: 1px solid #e1e8ed; cursor: pointer; transition: all 0.2s ease; width: 100%;">
+                            <svg width="16" height="16" fill="#6c757d" viewBox="0 0 24 24">
+                                <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>
+                            </svg>
+                            <span id="currentBucket" style="font-weight: 600; color: #007bff;">-</span>
+                            <span class="path-separator" style="color: #ff6b35; font-weight: bold; margin: 0 4px;">/</span>
+                            <span id="currentPath" style="color: #495057; flex: 1; overflow: hidden; text-overflow: ellipsis;"></span>
+                        </div>
+                    </div>
+
+                    <!-- Selection Info with Search -->
+                    <div id="selectionInfo" class="selection-bar" style="display: flex; margin-bottom: 10px; padding: 10px; background: #e3f2fd; border-radius: 6px; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                        <div style="display: flex; align-items: center; gap: 15px; flex: 1; min-width: 300px;">
+                            <span id="selectionCount">0 items selected</span>
+                            
+                            <!-- Search Input in Selection Bar -->
+                            <div id="searchContainer" style="position: relative; flex: 1; max-width: 400px;">
+                                <input type="text" id="fileSearchInput" placeholder="Search files and folders..." 
+                                       style="width: 100%; padding: 6px 10px 6px 30px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; background: white;">
+                                <svg style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; fill: #6c757d;" viewBox="0 0 24 24">
+                                    <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                                </svg>
+                            </div>
+                            
+                            <!-- Search Controls -->
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <label style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: #495057; white-space: nowrap;">
+                                    <input type="checkbox" id="recursiveSearch" style="margin: 0; transform: scale(0.9);">
+                                    Recursive
+                                </label>
+                                <button type="button" id="clearSearchBtn" title="Clear Search" 
+                                        style="padding: 4px; border: 1px solid #ddd; background: white; border-radius: 3px; cursor: pointer; display: flex; align-items: center;">
+                                    <svg width="12" height="12" fill="#6c757d" viewBox="0 0 24 24">
+                                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="selection-actions" style="display: flex; gap: 8px; flex-shrink: 0;">
                             <button type="button" class="btn-round" id="selectAllBtn" title="Select All">
-                                ☑️
+                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                </svg>
                             </button>
                             <button type="button" class="btn-round" id="clearSelectionBtn" title="Clear Selection">
-                                ❌
+                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                                </svg>
                             </button>
                             <button type="button" class="btn-round" id="downloadSelectedBtn" disabled title="Download Selected">
-                                💾
+                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                                </svg>
                             </button>
                             <button type="button" class="btn-round danger" id="deleteSelectedBtn" disabled title="Delete Selected">
-                                🗑️
+                                <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                </svg>
                             </button>
+                        </div>
+                        
+                        <!-- Search Progress Bar -->
+                        <div id="searchProgress" style="display: none; width: 100%; margin-top: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <span id="searchStatus" style="font-size: 11px; color: #495057;">Searching...</span>
+                                <span id="searchCount" style="font-size: 11px; color: #6c757d;">0 found</span>
+                            </div>
+                            <div style="width: 100%; height: 3px; background: #e9ecef; border-radius: 2px; overflow: hidden;">
+                                <div id="searchProgressBar" style="height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); width: 0%; transition: width 0.3s ease;"></div>
+                            </div>
                         </div>
                     </div>
                     
@@ -599,6 +657,287 @@
         let previewFiles = [];
         let currentObjectPrefix = '';
         let selectedBucket = '';
+
+        // Helper function to format path display with clickable segments
+        function updatePathDisplay(path) {
+            const pathElement = document.getElementById('currentPath');
+            const pathContainer = document.getElementById('fileBrowserPath');
+            const separatorElement = pathContainer ? pathContainer.querySelector('.path-separator') : null;
+            
+            if (!path || path === '') {
+                if (pathElement) {
+                    pathElement.innerHTML = '';
+                }
+                if (separatorElement) {
+                    separatorElement.style.display = 'none';
+                }
+            } else {
+                // Remove trailing slash and format as breadcrumb
+                const cleanPath = path.replace(/\/$/, '');
+                const pathParts = cleanPath.split('/').filter(part => part.length > 0);
+                
+                if (pathParts.length > 0 && pathElement) {
+                    // Create clickable path segments
+                    let pathHtml = '';
+                    pathParts.forEach((part, index) => {
+                        if (index > 0) {
+                            pathHtml += '<span class="path-separator" style="color: #ff6b35; font-weight: bold; margin: 0 2px;">/</span>';
+                        }
+                        
+                        // Build the path for this segment
+                        const segmentPath = pathParts.slice(0, index + 1).join('/') + '/';
+                        
+                        // Make each path segment clickable
+                        pathHtml += `<span class="path-segment" onclick="navigateToPathSegment('${segmentPath}')" 
+                                           style="color: #495057; cursor: pointer; padding: 2px 4px; border-radius: 3px; transition: background 0.2s ease;"
+                                           onmouseover="this.style.background='#e9ecef'" 
+                                           onmouseout="this.style.background='transparent'" 
+                                           title="Click to navigate to ${segmentPath}">${escapeHtml(part)}</span>`;
+                    });
+                    pathElement.innerHTML = pathHtml;
+                    if (separatorElement) {
+                        separatorElement.style.display = 'inline';
+                    }
+                } else {
+                    if (pathElement) {
+                        pathElement.innerHTML = '';
+                    }
+                    if (separatorElement) {
+                        separatorElement.style.display = 'none';
+                    }
+                }
+            }
+        }
+        
+        // Navigate to a specific path segment
+        function navigateToPathSegment(segmentPath) {
+            window.currentFileBrowserPrefix = segmentPath;
+            updatePathDisplay(segmentPath);
+            loadFileBrowserContents(window.currentFileBrowserBucket, segmentPath);
+            
+            // Clear search when navigating
+            const searchInput = document.getElementById('fileSearchInput');
+            if (searchInput) {
+                searchInput.value = '';
+            }
+            clearSearch();
+        }
+        
+        // Navigate to parent directory - single click
+        function navigateToParentDirectory(parentPath) {
+            window.currentFileBrowserPrefix = parentPath;
+            updatePathDisplay(parentPath);
+            loadFileBrowserContents(window.currentFileBrowserBucket, parentPath);
+            
+            // Clear search when navigating
+            const searchInput = document.getElementById('fileSearchInput');
+            if (searchInput) {
+                searchInput.value = '';
+            }
+            clearSearch();
+        }
+        
+        // Make bucket name clickable too
+        function makeBucketClickable() {
+            const bucketElement = document.getElementById('currentBucket');
+            if (bucketElement && bucketElement.textContent !== '-') {
+                bucketElement.style.cursor = 'pointer';
+                bucketElement.title = 'Click to go to bucket root';
+                bucketElement.onclick = function() {
+                    navigateToPathSegment('');
+                };
+                bucketElement.onmouseover = function() {
+                    this.style.textDecoration = 'underline';
+                };
+                bucketElement.onmouseout = function() {
+                    this.style.textDecoration = 'none';
+                };
+            }
+        }
+        
+        // Function to copy path to clipboard
+        function copyPathToClipboard() {
+            const bucketName = document.getElementById('currentBucket').textContent;
+            const pathElement = document.getElementById('currentPath');
+            
+            if (bucketName === '-') return;
+            
+            let fullPath = bucketName;
+            const pathText = pathElement.textContent || pathElement.innerText;
+            if (pathText && pathText.trim() !== '') {
+                fullPath += '/' + pathText.replace(/\s*\/\s*/g, '/');
+            }
+            
+            // Copy to clipboard
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(fullPath).then(() => {
+                    showPathCopyFeedback();
+                }).catch(err => {
+                    console.error('Failed to copy path:', err);
+                    fallbackCopyToClipboard(fullPath);
+                });
+            } else {
+                fallbackCopyToClipboard(fullPath);
+            }
+        }
+        
+        // Fallback copy method for older browsers
+        function fallbackCopyToClipboard(text) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+                showPathCopyFeedback();
+            } catch (err) {
+                console.error('Fallback copy failed:', err);
+            }
+            
+            document.body.removeChild(textArea);
+        }
+        
+        // Show visual feedback when path is copied
+        function showPathCopyFeedback() {
+            const pathContainer = document.getElementById('fileBrowserPath');
+            const originalBorder = pathContainer.style.borderColor;
+            const originalBackground = pathContainer.style.backgroundColor;
+            
+            // Flash green to indicate copy success
+            pathContainer.style.borderColor = '#28a745';
+            pathContainer.style.backgroundColor = '#d4edda';
+            pathContainer.title = 'Copied to clipboard!';
+            
+            setTimeout(() => {
+                pathContainer.style.borderColor = originalBorder;
+                pathContainer.style.backgroundColor = originalBackground;
+                pathContainer.title = 'Click to copy path to clipboard';
+            }, 1000);
+        }
+        
+        // Adjust search container width based on path length
+        function adjustSearchWidth() {
+            // No longer needed since path is now full width
+            return;
+        }
+        
+        // Setup search handlers - fallback function (should not be needed now)
+        function setupSearchHandlers() {
+            console.warn('Using fallback search handlers - this should not happen');
+            const searchInput = document.getElementById('fileSearchInput');
+            const recursiveCheckbox = document.getElementById('recursiveSearch');
+            const clearSearchBtn = document.getElementById('clearSearchBtn');
+            
+            if (!searchInput) {
+                console.error('Search input not found in fallback setup');
+                return;
+            }
+            
+            let searchTimeout;
+            
+            // Search input handler
+            searchInput.addEventListener('input', function(e) {
+                clearTimeout(searchTimeout);
+                const query = e.target.value.trim();
+                
+                if (query.length === 0) {
+                    clearSearch();
+                    return;
+                }
+                
+                searchTimeout = setTimeout(() => {
+                    performSearch(query, recursiveCheckbox ? recursiveCheckbox.checked : false);
+                }, 300);
+            });
+            
+            // Recursive checkbox handler
+            if (recursiveCheckbox) {
+                recursiveCheckbox.addEventListener('change', function() {
+                    const query = searchInput.value.trim();
+                    if (query.length > 0) {
+                        performSearch(query, this.checked);
+                    }
+                });
+            }
+            
+            // Clear search handler
+            if (clearSearchBtn) {
+                clearSearchBtn.addEventListener('click', function() {
+                    searchInput.value = '';
+                    clearSearch();
+                });
+            }
+        }
+        
+        // Pattern matching function for wildcards
+        function matchesPattern(text, pattern) {
+            // Convert wildcard pattern to regex
+            if (!pattern.includes('*') && !pattern.includes('?')) {
+                return text.includes(pattern);
+            }
+            
+            // Escape special regex characters except * and ?
+            let regexPattern = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+            // Convert * to .* and ? to .
+            regexPattern = regexPattern.replace(/\*/g, '.*').replace(/\?/g, '.');
+            
+            try {
+                const regex = new RegExp('^' + regexPattern + '$', 'i');
+                return regex.test(text);
+            } catch (e) {
+                // Fallback to simple includes if regex fails
+                return text.includes(pattern);
+            }
+        }
+        
+        // Basic search function for fallback
+        function performBasicSearch(query) {
+            const listElement = document.getElementById('fileBrowserList');
+            const fileItems = listElement.querySelectorAll('.file-item');
+            const queryLower = query.toLowerCase();
+            let visibleCount = 0;
+            
+            fileItems.forEach(item => {
+                const name = item.dataset.name || '';
+                const displayName = item.querySelector('span:nth-child(2)') ? 
+                    item.querySelector('span:nth-child(2)').textContent : '';
+                
+                if (matchesPattern(name.toLowerCase(), queryLower) || 
+                    matchesPattern(displayName.toLowerCase(), queryLower)) {
+                    item.style.display = 'flex';
+                    visibleCount++;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+            
+            // Update search count if element exists
+            const searchCount = document.getElementById('searchCount');
+            if (searchCount) {
+                searchCount.textContent = `${visibleCount} found`;
+            }
+        }
+        
+        // Reset to original file list
+        function resetToOriginalFileList() {
+            const listElement = document.getElementById('fileBrowserList');
+            const fileItems = listElement.querySelectorAll('.file-item');
+            
+            fileItems.forEach(item => {
+                item.style.display = 'flex';
+            });
+            
+            // Clear search count
+            const searchCount = document.getElementById('searchCount');
+            if (searchCount) {
+                searchCount.textContent = '';
+            }
+        }
 
         // Wizard navigation
         async function nextStep() {
@@ -2705,6 +3044,325 @@
             }
         }
         
+        // Search functionality - moved before openFileBrowser to fix scope issue
+        let searchTimeout;
+        let originalFileList = [];
+        let searchAbortController = null;
+
+        function initializeSearch() {
+            const searchInput = document.getElementById('fileSearchInput');
+            const recursiveCheckbox = document.getElementById('recursiveSearch');
+            const clearSearchBtn = document.getElementById('clearSearchBtn');
+
+            // Check if elements exist
+            if (!searchInput || !recursiveCheckbox || !clearSearchBtn) {
+                console.error('Search elements not found, retrying in 500ms...');
+                setTimeout(initializeSearch, 500);
+                return;
+            }
+
+            // Store original file list when search starts
+            const storeOriginalList = () => {
+                if (originalFileList.length === 0) {
+                    const fileItems = document.querySelectorAll('#fileBrowserList .file-item');
+                    originalFileList = Array.from(fileItems).map(item => ({
+                        element: item.cloneNode(true),
+                        name: item.dataset.name || '',
+                        type: item.dataset.type || '',
+                        path: item.dataset.path || ''
+                    }));
+                }
+            };
+
+            // Search input handler
+            searchInput.addEventListener('input', function(e) {
+                clearTimeout(searchTimeout);
+                const query = e.target.value.trim();
+                
+                if (query.length === 0) {
+                    clearSearch();
+                    return;
+                }
+
+                storeOriginalList();
+                
+                searchTimeout = setTimeout(() => {
+                    performSearch(query, recursiveCheckbox.checked);
+                }, 300);
+            });
+
+            // Recursive checkbox handler
+            recursiveCheckbox.addEventListener('change', function() {
+                const query = searchInput.value.trim();
+                if (query.length > 0) {
+                    storeOriginalList();
+                    performSearch(query, this.checked);
+                }
+            });
+
+            // Clear search handler
+            clearSearchBtn.addEventListener('click', function() {
+                searchInput.value = '';
+                clearSearch();
+            });
+        }
+
+        async function performSearch(query, recursive) {
+            const searchProgress = document.getElementById('searchProgress');
+            const searchStatus = document.getElementById('searchStatus');
+            const searchCount = document.getElementById('searchCount');
+            const searchProgressBar = document.getElementById('searchProgressBar');
+
+            // Show progress
+            searchProgress.style.display = 'block';
+            searchStatus.textContent = recursive ? 'Searching recursively...' : 'Searching current folder...';
+            searchCount.textContent = '0 found';
+            searchProgressBar.style.width = '0%';
+
+            // Cancel previous search
+            if (searchAbortController) {
+                searchAbortController.abort();
+            }
+            searchAbortController = new AbortController();
+
+            try {
+                if (recursive) {
+                    await performRecursiveSearch(query);
+                } else {
+                    await performLocalSearch(query);
+                }
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    console.error('Search error:', error);
+                    searchStatus.textContent = 'Search failed';
+                }
+            }
+        }
+
+        async function performLocalSearch(query) {
+            const searchCount = document.getElementById('searchCount');
+            const searchProgressBar = document.getElementById('searchProgressBar');
+            const searchStatus = document.getElementById('searchStatus');
+            
+            const bucket = window.currentFileBrowserBucket;
+            const currentPrefix = window.currentFileBrowserPrefix || '';
+
+            searchProgressBar.style.width = '10%';
+
+            try {
+                const response = await fetch('/search-files', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        session_id: window.sessionId,
+                        bucket: bucket,
+                        prefix: currentPrefix,
+                        query: query,
+                        recursive: false
+                    }),
+                    signal: searchAbortController.signal
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const foundItems = data.results || [];
+                    searchCount.textContent = `${foundItems.length} found`;
+                    
+                    searchProgressBar.style.width = '100%';
+                    displaySearchResults(foundItems);
+                    searchStatus.textContent = 'Local search complete';
+                } else {
+                    searchStatus.textContent = 'Search failed: ' + (data.message || 'Unknown error');
+                    searchCount.textContent = '0 found';
+                }
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    console.error('Local search error:', error);
+                    searchStatus.textContent = 'Search failed';
+                    searchCount.textContent = '0 found';
+                }
+            }
+            
+            setTimeout(() => {
+                document.getElementById('searchProgress').style.display = 'none';
+            }, 1000);
+        }
+
+        async function performRecursiveSearch(query) {
+            const searchStatus = document.getElementById('searchStatus');
+            const searchCount = document.getElementById('searchCount');
+            const searchProgressBar = document.getElementById('searchProgressBar');
+            
+            const bucket = window.currentFileBrowserBucket;
+            const currentPrefix = window.currentFileBrowserPrefix || '';
+            let foundItems = [];
+
+            searchProgressBar.style.width = '10%';
+
+            try {
+                const response = await fetch('/search-files', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        session_id: window.sessionId,
+                        bucket: bucket,
+                        prefix: currentPrefix,
+                        query: query,
+                        recursive: true
+                    }),
+                    signal: searchAbortController.signal
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    foundItems = data.results || [];
+                    searchCount.textContent = `${foundItems.length} found`;
+                    
+                    // Progressive display
+                    for (let i = 0; i < foundItems.length; i += 50) {
+                        if (searchAbortController.signal.aborted) break;
+                        
+                        const batch = foundItems.slice(i, i + 50);
+                        displaySearchResults(foundItems.slice(0, i + batch.length));
+                        
+                        const progress = Math.min(90, (i / foundItems.length) * 80 + 10);
+                        searchProgressBar.style.width = progress + '%';
+                        
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                    }
+                    
+                    searchProgressBar.style.width = '100%';
+                    searchStatus.textContent = 'Recursive search complete';
+                } else {
+                    throw new Error(data.message || 'Search failed');
+                }
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    searchStatus.textContent = 'Search failed: ' + error.message;
+                    displaySearchResults([]);
+                }
+                throw error;
+            }
+            
+            setTimeout(() => {
+                document.getElementById('searchProgress').style.display = 'none';
+            }, 1000);
+        }
+
+        function displaySearchResults(results) {
+            const listElement = document.getElementById('fileBrowserList');
+            
+            if (results.length === 0) {
+                listElement.innerHTML = '<div class="empty-folder"><p>No matches found</p></div>';
+                return;
+            }
+
+            let html = '';
+            results.forEach(item => {
+                if (item.element) {
+                    // For local search results
+                    html += item.element.outerHTML;
+                } else {
+                    // For recursive search results from server
+                    const isFolder = item.type === 'folder';
+                    const fileName = escapeHtml(item.name);
+                    const fileNameLower = item.name.toLowerCase();
+                    
+                    if (isFolder) {
+                        html += `
+                            <div class="file-item folder" data-type="folder" data-path="${item.path}" data-name="${item.name}">
+                                <input type="checkbox" class="file-checkbox" onclick="event.stopPropagation(); toggleFileSelection(this)">
+                                <span style="flex: 1;">${fileName}</span>
+                                <span style="color: #666; font-size: 12px;">Folder</span>
+                            </div>
+                        `;
+                    } else {
+                        const sizeFormatted = formatFileSize(item.size || 0);
+                        html += `
+                            <div class="file-item file" data-type="file" data-path="${item.path}" data-name="${fileNameLower}" data-size="${item.size || 0}">
+                                <input type="checkbox" class="file-checkbox" onclick="event.stopPropagation(); toggleFileSelection(this)">
+                                <span style="flex: 1;">${fileName}</span>
+                                <span style="color: #666; font-size: 12px;">${sizeFormatted}</span>
+                            </div>
+                        `;
+                    }
+                }
+            });
+
+            listElement.innerHTML = html;
+            
+            // Re-attach click handlers
+            document.querySelectorAll('.file-item').forEach(item => {
+                // Parent directory already has its own onclick handler, skip it
+                if (!item.classList.contains('parent-dir')) {
+                    item.addEventListener('click', function(e) {
+                        if (e.target.type !== 'checkbox') {
+                            handleFileItemClick(this);
+                        }
+                    });
+                }
+            });
+        }
+
+        function clearSearch() {
+            const listElement = document.getElementById('fileBrowserList');
+            const searchProgress = document.getElementById('searchProgress');
+            
+            // Cancel ongoing search
+            if (searchAbortController) {
+                searchAbortController.abort();
+            }
+            
+            // Hide progress
+            searchProgress.style.display = 'none';
+            
+            // Restore original list
+            if (originalFileList.length > 0) {
+                let html = '';
+                originalFileList.forEach(item => {
+                    html += item.element.outerHTML;
+                });
+                listElement.innerHTML = html;
+                
+                // Re-attach click handlers
+                document.querySelectorAll('.file-item').forEach(item => {
+                    // Parent directory already has its own onclick handler, skip it
+                    if (!item.classList.contains('parent-dir')) {
+                        item.addEventListener('click', function(e) {
+                            if (e.target.type !== 'checkbox') {
+                                handleFileItemClick(this);
+                            }
+                        });
+                    }
+                });
+            }
+            
+            // Clear stored list to force refresh on next search
+            originalFileList = [];
+        }
+        
+        function handleFileItemClick(item) {
+            const type = item.dataset.type;
+            const path = item.dataset.path;
+            
+            if (type === 'folder') {
+                // Navigate to folder
+                window.currentFileBrowserPrefix = path;
+                updatePathDisplay(path);
+                loadFileBrowserContents(window.currentFileBrowserBucket, path);
+                
+                // Clear search when navigating
+                document.getElementById('fileSearchInput').value = '';
+                clearSearch();
+            }
+        }
+        
         function openFileBrowser() {
             const bucket = $('#filebrowser-bucket-select').val();
             
@@ -2723,11 +3381,25 @@
             
             // Update UI
             document.getElementById('currentBucket').textContent = bucket;
-            document.getElementById('currentPath').textContent = '/';
+            updatePathDisplay('');
+            
+            // Make bucket name clickable
+            setTimeout(() => makeBucketClickable(), 100);
+            
+            // Clear search if function exists
+            const searchInput = document.getElementById('fileSearchInput');
+            if (searchInput) {
+                searchInput.value = '';
+            }
             
             // Show modal and load contents
             document.getElementById('fileBrowserModal').style.display = 'block';
             loadFileBrowserContents(bucket, '');
+            
+            // Initialize search after modal is shown - increased delay to ensure DOM is ready
+            setTimeout(() => {
+                initializeSearch();
+            }, 500);
         }
         
         function updateLastUsedBucket(bucketName) {
@@ -2806,10 +3478,10 @@
                 const parentPrefix = current_prefix.split('/').slice(0, -2).join('/');
                 const finalPrefix = parentPrefix ? parentPrefix + '/' : '';
                 html += `
-                    <div class="file-item folder" data-type="up" data-path="${finalPrefix}">
-                        <span>📁</span>
-                        <span style="font-weight: bold; margin-left: 15px;">..</span>
-                        <span style="color: #666; font-size: 12px; margin-left: auto;">(Parent Directory)</span>
+                    <div class="file-item folder parent-dir" data-type="up" data-path="${finalPrefix}" onclick="navigateToParentDirectory('${finalPrefix}')" style="cursor: pointer;">
+                        <span style="visibility: hidden; width: 20px;"></span>
+                        <span style="font-weight: bold; flex: 1;">..</span>
+                        <span style="color: #666; font-size: 12px;">(Parent Directory)</span>
                     </div>
                 `;
             }
@@ -2819,8 +3491,7 @@
                 html += `
                     <div class="file-item folder" data-type="folder" data-path="${folder.full_path}" data-name="${folder.name}">
                         <input type="checkbox" class="file-checkbox" onclick="event.stopPropagation(); toggleFileSelection(this)">
-                        <span>📁</span>
-                        <span style="font-weight: bold; flex: 1;">${escapeHtml(folder.name)}</span>
+                        <span style="flex: 1;">${escapeHtml(folder.name)}</span>
                         <span style="color: #666; font-size: 12px;">Folder</span>
                     </div>
                 `;
@@ -2829,31 +3500,37 @@
             // Add files
             files.forEach(file => {
                 const sizeFormatted = formatFileSize(file.size);
+                const fileName = escapeHtml(file.name);
+                const fileNameLower = file.name.toLowerCase();
                 html += `
-                    <div class="file-item file" data-type="file" data-path="${file.full_path}" data-name="${file.name}" data-size="${file.size}">
+                    <div class="file-item file" data-type="file" data-path="${file.full_path}" data-name="${fileNameLower}" data-size="${file.size}">
                         <input type="checkbox" class="file-checkbox" onclick="event.stopPropagation(); toggleFileSelection(this)">
-                        <span>📄</span>
-                        <span style="flex: 1;">${escapeHtml(file.name)}</span>
+                        <span style="flex: 1;">${fileName}</span>
                         <span style="color: #666; font-size: 12px;">${sizeFormatted}</span>
                     </div>
                 `;
             });
             
             if (folders.length === 0 && files.length === 0) {
-                html = '<div class="empty-folder"><p>This folder is empty</p></div>';
+                // Only show empty message if we don't have a parent directory option
+                if (current_prefix && current_prefix !== '') {
+                    html += '<div class="empty-folder"><p>This folder is empty</p></div>';
+                } else {
+                    html = '<div class="empty-folder"><p>This folder is empty</p></div>';
+                }
             }
             
             listElement.innerHTML = html;
             
             // Add click and context menu handlers
             document.querySelectorAll('.file-item').forEach(item => {
-                // Double-click to navigate folders
-                if (item.dataset.type === 'folder' || item.dataset.type === 'up') {
+                // Double-click to navigate folders (but not parent directory - that uses single click)
+                if ((item.dataset.type === 'folder' || item.dataset.type === 'up') && !item.classList.contains('parent-dir')) {
                     item.addEventListener('dblclick', function(e) {
                         if (e.target.type !== 'checkbox') {
                             const path = this.dataset.path;
                             window.currentFileBrowserPrefix = path;
-                            document.getElementById('currentPath').textContent = path || '/';
+                            updatePathDisplay(path);
                             loadFileBrowserContents(window.currentFileBrowserBucket, path);
                         }
                     });
@@ -3023,10 +3700,12 @@
                 openUploadVerification();
             });
             
-            // Close file browser modal
-            document.getElementById('closeFileBrowser').addEventListener('click', function() {
-                document.getElementById('fileBrowserModal').style.display = 'none';
-            });
+
+        // Close file browser modal
+        document.getElementById('closeFileBrowser').addEventListener('click', function() {
+            document.getElementById('fileBrowserModal').style.display = 'none';
+        });
+
             
             // Refresh browser
             document.getElementById('refreshBrowser').addEventListener('click', function() {

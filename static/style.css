@@ -456,7 +456,7 @@ body {
 .modal-content {
     background-color: white;
     margin: 5% auto;
-    border-radius: 15px;
+    border-radius: 20px;
     width: 80%;
     max-width: 600px;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
@@ -529,36 +529,827 @@ body {
     flex-shrink: 0;
 }
 
-/* Browser content styling */
+/* Enhanced Browser content styling with colorized file types */
 .browser-item {
-    padding: 10px 15px;
+    padding: 12px 15px;
     border: 1px solid #e1e8ed;
-    border-radius: 6px;
-    margin: 5px 0;
+    border-radius: 8px;
+    margin: 6px 0;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.3s ease;
     display: flex;
     align-items: center;
+    background: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
 }
 
 .browser-item:hover {
     background: #f8f9fa;
     border-color: #667eea;
+    transform: translateX(3px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
 }
 
-.browser-item.folder {
-    background: #f8f9fa;
+/* Folders */
+.browser-item.folder,
+.file-item.folder {
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
     border-left: 4px solid #667eea;
 }
 
-.browser-item.folder:before {
-    content: "📁 ";
-    margin-right: 8px;
+.browser-item.folder:before,
+.file-item.folder:before {
+    content: "📁";
+    margin-right: 12px;
+    font-size: 18px;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.1));
 }
 
-.browser-item.file:before {
-    content: "📄 ";
-    margin-right: 8px;
+/* Parent directory styling - override folder icon */
+.file-item.parent-dir:before {
+    content: "📁";
+    margin-right: 12px;
+    font-size: 18px;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.1));
+}
+
+/* Parent directory specific styling */
+.file-item.parent-dir {
+    background: linear-gradient(135deg, #f0f0f0, #e8e8e8) !important;
+    border-left: 4px solid #6c757d !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+}
+
+.file-item.parent-dir:hover {
+    background: linear-gradient(135deg, #e9ecef, #dee2e6) !important;
+    border-left-color: #495057 !important;
+    transform: translateX(2px) !important;
+}
+
+.file-item.parent-dir:active {
+    transform: translateX(0px) !important;
+    background: linear-gradient(135deg, #dee2e6, #ced4da) !important;
+}
+
+/* Default file icon */
+.browser-item.file:before,
+.file-item.file:before {
+    margin-right: 12px;
+    font-size: 16px;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.1));
+}
+
+/* Generic file icon */
+.browser-item.file:before,
+.file-item.file:before {
+    content: "📄";
+    color: #6c757d;
+}
+
+/* Image files */
+.browser-item.file[data-name*=".jpg"]:before,
+.browser-item.file[data-name*=".jpeg"]:before,
+.browser-item.file[data-name*=".png"]:before,
+.browser-item.file[data-name*=".gif"]:before,
+.browser-item.file[data-name*=".bmp"]:before,
+.browser-item.file[data-name*=".svg"]:before,
+.browser-item.file[data-name*=".webp"]:before,
+.browser-item.file[data-name*=".ico"]:before,
+.file-item.file[data-name*=".jpg"]:before,
+.file-item.file[data-name*=".jpeg"]:before,
+.file-item.file[data-name*=".png"]:before,
+.file-item.file[data-name*=".gif"]:before,
+.file-item.file[data-name*=".bmp"]:before,
+.file-item.file[data-name*=".svg"]:before,
+.file-item.file[data-name*=".webp"]:before,
+.file-item.file[data-name*=".ico"]:before {
+    content: "🖼️";
+    color: #e91e63;
+}
+
+/* Video files */
+.browser-item.file[data-name*=".mp4"]:before,
+.browser-item.file[data-name*=".avi"]:before,
+.browser-item.file[data-name*=".mov"]:before,
+.browser-item.file[data-name*=".wmv"]:before,
+.browser-item.file[data-name*=".flv"]:before,
+.browser-item.file[data-name*=".webm"]:before,
+.browser-item.file[data-name*=".mkv"]:before,
+.file-item.file[data-name*=".mp4"]:before,
+.file-item.file[data-name*=".avi"]:before,
+.file-item.file[data-name*=".mov"]:before,
+.file-item.file[data-name*=".wmv"]:before,
+.file-item.file[data-name*=".flv"]:before,
+.file-item.file[data-name*=".webm"]:before,
+.file-item.file[data-name*=".mkv"]:before {
+    content: "🎬";
+    color: #f44336;
+}
+
+/* Audio files */
+.browser-item.file[data-name*=".mp3"]:before,
+.browser-item.file[data-name*=".wav"]:before,
+.browser-item.file[data-name*=".ogg"]:before,
+.browser-item.file[data-name*=".flac"]:before,
+.browser-item.file[data-name*=".aac"]:before,
+.browser-item.file[data-name*=".m4a"]:before,
+.file-item.file[data-name*=".mp3"]:before,
+.file-item.file[data-name*=".wav"]:before,
+.file-item.file[data-name*=".ogg"]:before,
+.file-item.file[data-name*=".flac"]:before,
+.file-item.file[data-name*=".aac"]:before,
+.file-item.file[data-name*=".m4a"]:before {
+    content: "🎵";
+    color: #9c27b0;
+}
+
+/* Document files */
+.browser-item.file[data-name*=".pdf"]:before,
+.file-item.file[data-name*=".pdf"]:before {
+    content: "📕";
+    color: #d32f2f;
+}
+
+.browser-item.file[data-name*=".doc"]:before,
+.browser-item.file[data-name*=".docx"]:before,
+.file-item.file[data-name*=".doc"]:before,
+.file-item.file[data-name*=".docx"]:before {
+    content: "📘";
+    color: #1976d2;
+}
+
+.browser-item.file[data-name*=".xls"]:before,
+.browser-item.file[data-name*=".xlsx"]:before,
+.file-item.file[data-name*=".xls"]:before,
+.file-item.file[data-name*=".xlsx"]:before {
+    content: "📗";
+    color: #388e3c;
+}
+
+.browser-item.file[data-name*=".ppt"]:before,
+.browser-item.file[data-name*=".pptx"]:before,
+.file-item.file[data-name*=".ppt"]:before,
+.file-item.file[data-name*=".pptx"]:before {
+    content: "📙";
+    color: #f57c00;
+}
+
+.browser-item.file[data-name*=".txt"]:before,
+.file-item.file[data-name*=".txt"]:before {
+    content: "📝";
+    color: #616161;
+}
+
+/* Code files */
+.browser-item.file[data-name*=".html"]:before,
+.browser-item.file[data-name*=".htm"]:before,
+.file-item.file[data-name*=".html"]:before,
+.file-item.file[data-name*=".htm"]:before {
+    content: "🌐";
+    color: #ff5722;
+}
+
+.browser-item.file[data-name*=".css"]:before,
+.file-item.file[data-name*=".css"]:before {
+    content: "🎨";
+    color: #1976d2;
+}
+
+.browser-item.file[data-name*=".js"]:before,
+.browser-item.file[data-name*=".jsx"]:before,
+.file-item.file[data-name*=".js"]:before,
+.file-item.file[data-name*=".jsx"]:before {
+    content: "⚡";
+    color: #ffc107;
+}
+
+.browser-item.file[data-name*=".py"]:before,
+.file-item.file[data-name*=".py"]:before {
+    content: "🐍";
+    color: #4caf50;
+}
+
+.browser-item.file[data-name*=".json"]:before,
+.file-item.file[data-name*=".json"]:before {
+    content: "🔧";
+    color: #ff9800;
+}
+
+.browser-item.file[data-name*=".xml"]:before,
+.file-item.file[data-name*=".xml"]:before {
+    content: "📋";
+    color: #795548;
+}
+
+/* Archive files */
+.browser-item.file[data-name*=".zip"]:before,
+.browser-item.file[data-name*=".rar"]:before,
+.browser-item.file[data-name*=".7z"]:before,
+.browser-item.file[data-name*=".tar"]:before,
+.browser-item.file[data-name*=".gz"]:before,
+.file-item.file[data-name*=".zip"]:before,
+.file-item.file[data-name*=".rar"]:before,
+.file-item.file[data-name*=".7z"]:before,
+.file-item.file[data-name*=".tar"]:before,
+.file-item.file[data-name*=".gz"]:before {
+    content: "📦";
+    color: #8bc34a;
+}
+
+/* Database files */
+.browser-item.file[data-name*=".sql"]:before,
+.browser-item.file[data-name*=".db"]:before,
+.browser-item.file[data-name*=".sqlite"]:before,
+.file-item.file[data-name*=".sql"]:before,
+.file-item.file[data-name*=".db"]:before,
+.file-item.file[data-name*=".sqlite"]:before {
+    content: "🗃️";
+    color: #607d8b;
+}
+
+/* Configuration files */
+.browser-item.file[data-name*=".cfg"]:before,
+.browser-item.file[data-name*=".conf"]:before,
+.browser-item.file[data-name*=".ini"]:before,
+.browser-item.file[data-name*=".yaml"]:before,
+.browser-item.file[data-name*=".yml"]:before,
+.file-item.file[data-name*=".cfg"]:before,
+.file-item.file[data-name*=".conf"]:before,
+.file-item.file[data-name*=".ini"]:before,
+.file-item.file[data-name*=".yaml"]:before,
+.file-item.file[data-name*=".yml"]:before {
+    content: "⚙️";
+    color: #9e9e9e;
+}
+
+/* Log files */
+.browser-item.file[data-name*=".log"]:before,
+.file-item.file[data-name*=".log"]:before {
+    content: "📊";
+    color: #ff5722;
+}
+
+/* Additional file types */
+.browser-item.file[data-name*=".md"]:before,
+.browser-item.file[data-name*=".markdown"]:before,
+.file-item.file[data-name*=".md"]:before,
+.file-item.file[data-name*=".markdown"]:before {
+    content: "📑";
+    color: #424242;
+}
+
+.browser-item.file[data-name*=".csv"]:before,
+.file-item.file[data-name*=".csv"]:before {
+    content: "📈";
+    color: #4caf50;
+}
+
+.browser-item.file[data-name*=".exe"]:before,
+.browser-item.file[data-name*=".msi"]:before,
+.browser-item.file[data-name*=".app"]:before,
+.browser-item.file[data-name*=".deb"]:before,
+.browser-item.file[data-name*=".rpm"]:before,
+.file-item.file[data-name*=".exe"]:before,
+.file-item.file[data-name*=".msi"]:before,
+.file-item.file[data-name*=".app"]:before,
+.file-item.file[data-name*=".deb"]:before,
+.file-item.file[data-name*=".rpm"]:before {
+    content: "⚙️";
+    color: #f44336;
+}
+
+.browser-item.file[data-name*=".iso"]:before,
+.browser-item.file[data-name*=".img"]:before,
+.browser-item.file[data-name*=".dmg"]:before,
+.file-item.file[data-name*=".iso"]:before,
+.file-item.file[data-name*=".img"]:before,
+.file-item.file[data-name*=".dmg"]:before {
+    content: "💿";
+    color: #9c27b0;
+}
+
+.browser-item.file[data-name*=".font"]:before,
+.browser-item.file[data-name*=".ttf"]:before,
+.browser-item.file[data-name*=".otf"]:before,
+.browser-item.file[data-name*=".woff"]:before,
+.browser-item.file[data-name*=".woff2"]:before,
+.file-item.file[data-name*=".font"]:before,
+.file-item.file[data-name*=".ttf"]:before,
+.file-item.file[data-name*=".otf"]:before,
+.file-item.file[data-name*=".woff"]:before,
+.file-item.file[data-name*=".woff2"]:before {
+    content: "🔤";
+    color: #795548;
+}
+
+/* Certificate and security files */
+.browser-item.file[data-name*=".pem"]:before,
+.browser-item.file[data-name*=".crt"]:before,
+.browser-item.file[data-name*=".key"]:before,
+.browser-item.file[data-name*=".cert"]:before,
+.file-item.file[data-name*=".pem"]:before,
+.file-item.file[data-name*=".crt"]:before,
+.file-item.file[data-name*=".key"]:before,
+.file-item.file[data-name*=".cert"]:before {
+    content: "🔐";
+    color: #f44336;
+}
+
+/* Enhanced hover effects for different file types */
+.browser-item.file[data-name*=".jpg"]:hover,
+.browser-item.file[data-name*=".jpeg"]:hover,
+.browser-item.file[data-name*=".png"]:hover,
+.browser-item.file[data-name*=".gif"]:hover,
+.file-item.file[data-name*=".jpg"]:hover,
+.file-item.file[data-name*=".jpeg"]:hover,
+.file-item.file[data-name*=".png"]:hover,
+.file-item.file[data-name*=".gif"]:hover {
+    background: linear-gradient(135deg, rgba(233, 30, 99, 0.1), rgba(233, 30, 99, 0.05));
+    border-left-color: #e91e63;
+}
+
+.browser-item.file[data-name*=".mp4"]:hover,
+.browser-item.file[data-name*=".avi"]:hover,
+.browser-item.file[data-name*=".mov"]:hover,
+.file-item.file[data-name*=".mp4"]:hover,
+.file-item.file[data-name*=".avi"]:hover,
+.file-item.file[data-name*=".mov"]:hover {
+    background: linear-gradient(135deg, rgba(244, 67, 54, 0.1), rgba(244, 67, 54, 0.05));
+    border-left-color: #f44336;
+}
+
+.browser-item.file[data-name*=".pdf"]:hover,
+.file-item.file[data-name*=".pdf"]:hover {
+    background: linear-gradient(135deg, rgba(211, 47, 47, 0.1), rgba(211, 47, 47, 0.05));
+    border-left-color: #d32f2f;
+}
+
+/* File size indicators */
+.file-item .file-size-indicator {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 6px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: white;
+    margin-left: auto;
+}
+
+.file-size-indicator.small {
+    background: #4caf50;
+}
+
+.file-size-indicator.medium {
+    background: #ff9800;
+}
+
+.file-size-indicator.large {
+    background: #f44336;
+}
+
+.file-size-indicator.huge {
+    background: #9c27b0;
+}
+
+/* File type badges */
+.file-type-badge {
+    display: inline-block;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-left: 8px;
+    color: white;
+    opacity: 0.8;
+}
+
+.file-type-badge.image {
+    background: #e91e63;
+}
+
+.file-type-badge.video {
+    background: #f44336;
+}
+
+.file-type-badge.audio {
+    background: #9c27b0;
+}
+
+.file-type-badge.document {
+    background: #1976d2;
+}
+
+.file-type-badge.archive {
+    background: #8bc34a;
+}
+
+.file-type-badge.code {
+    background: #ff9800;
+}
+
+/* Enhanced folder styling */
+.browser-item.folder:hover,
+.file-item.folder:hover {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.05));
+    border-left-color: #5a67d8;
+    transform: translateX(5px);
+}
+
+/* File browser integration and enhancements */
+.file-browser-modal .modal-content {
+    border: none;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(10px);
+}
+
+.file-browser-enhancement {
+    border-top: 1px solid #e1e8ed;
+    padding: 10px 15px;
+    background: #f8f9fa;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: #6c757d;
+}
+
+/* Search bar integration */
+.search-bar {
+    background: linear-gradient(135deg, #f8f9fa, #ffffff);
+    border: 1px solid #e1e8ed;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    transition: all 0.3s ease;
+}
+
+.search-bar:focus-within {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.search-bar input[type="text"] {
+    transition: all 0.3s ease;
+    background: transparent;
+    border: none;
+}
+
+.search-bar input[type="text"]:focus {
+    outline: none;
+    background: white;
+    border-radius: 4px;
+}
+
+/* Selection bar improvements */
+.selection-bar {
+    background: linear-gradient(135deg, #e3f2fd, #f3e5f5);
+    border: 1px solid #bbdefb;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    padding: 12px 16px;
+    transition: all 0.3s ease;
+}
+
+/* File browser content improvements */
+.file-browser-content-regular {
+    background: white;
+    border: 1px solid #e1e8ed;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+}
+
+.file-browser-content-regular:hover {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+/* File item spacing and layout */
+.file-browser-content-regular .file-item {
+    padding: 14px 18px;
+    border-bottom: 1px solid #f8f9fa;
+    transition: all 0.2s ease;
+}
+
+.file-browser-content-regular .file-item:last-child {
+    border-bottom: none;
+}
+
+.file-browser-content-regular .file-item:hover {
+    background: linear-gradient(135deg, #f8f9fa, #ffffff);
+    transform: translateX(2px);
+    border-left: 3px solid #667eea;
+    padding-left: 15px;
+}
+
+/* Improved modal header */
+.modal-header {
+    background: linear-gradient(135deg, #2c3e50, #34495e);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 20px 30px;
+}
+
+.modal-header h3 {
+    font-size: 20px;
+    font-weight: 500;
+    margin: 0;
+    color: white;
+}
+
+.modal-header #fileBrowserPath {
+    font-size: 13px;
+    opacity: 0.8;
+    margin-top: 5px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* Better button styling */
+.btn-minimal {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-minimal:hover {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
+}
+
+/* Progress bar styling */
+.search-bar .progress-bar {
+    background: linear-gradient(90deg, #667eea, #764ba2);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+}
+
+/* File browser status */
+.file-browser-status {
+    padding: 8px 16px;
+    background: #f8f9fa;
+    border-top: 1px solid #e9ecef;
+    font-size: 12px;
+    color: #6c757d;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Smooth animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.file-item {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* Better close button */
+.close {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 32px;
+    font-weight: 300;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    line-height: 1;
+}
+
+.close:hover {
+    color: white;
+    transform: scale(1.1);
+}
+
+/* Enhanced Path Display Styling - Full Width */
+#fileBrowserPath {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    border: 1px solid #e1e8ed;
+    border-radius: 4px;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Path bar container */
+.path-bar {
+    margin-bottom: 10px !important;
+}
+
+.path-bar #fileBrowserPath {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: auto !important;
+}
+
+#fileBrowserPath:hover {
+    border-color: #007bff;
+    box-shadow: 0 2px 6px rgba(0, 123, 255, 0.15);
+    transform: translateY(-1px);
+}
+
+#fileBrowserPath:active {
+    transform: translateY(0);
+    background: #f8f9fa;
+}
+
+/* Path separator highlighting */
+.path-separator {
+    color: #ff6b35 !important;
+    font-weight: bold !important;
+    text-shadow: 0 1px 2px rgba(255, 107, 53, 0.3);
+}
+
+/* Bucket name styling */
+#currentBucket {
+    color: #007bff !important;
+    font-weight: 600 !important;
+    text-shadow: 0 1px 2px rgba(0, 123, 255, 0.2);
+    transition: all 0.2s ease;
+}
+
+#currentBucket:hover {
+    color: #0056b3 !important;
+    text-decoration: underline;
+}
+
+/* Path segment styling */
+.path-segment {
+    color: #495057 !important;
+    cursor: pointer !important;
+    padding: 2px 4px !important;
+    border-radius: 3px !important;
+    transition: all 0.2s ease !important;
+}
+
+.path-segment:hover {
+    background: #e9ecef !important;
+    color: #343a40 !important;
+}
+
+/* Search container responsive sizing */
+#searchContainer {
+    transition: all 0.3s ease;
+    min-width: 200px;
+}
+
+/* Enhanced search bar layout */
+.search-bar > div {
+    align-items: center;
+    gap: 10px;
+}
+
+@media (max-width: 1024px) {
+    #fileBrowserPath {
+        max-width: 250px;
+        font-size: 12px;
+    }
+    
+    #searchContainer {
+        min-width: 150px;
+    }
+}
+
+/* Selection bar with search styling */
+.selection-bar {
+    background: linear-gradient(135deg, #e3f2fd, #f3e5f5) !important;
+    border: 1px solid #bbdefb !important;
+    border-radius: 8px !important;
+    margin-bottom: 12px !important;
+    padding: 12px 16px !important;
+    transition: all 0.3s ease !important;
+}
+
+.selection-bar #searchContainer {
+    max-width: 400px;
+    flex: 1;
+}
+
+.selection-bar #searchContainer input {
+    font-size: 13px;
+    padding: 6px 10px 6px 30px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: white;
+    transition: all 0.2s ease;
+}
+
+.selection-bar #searchContainer input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+}
+
+@media (max-width: 768px) {
+    .selection-bar {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+    }
+    
+    .selection-bar > div:first-child {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+        min-width: auto !important;
+    }
+    
+    .selection-bar #searchContainer {
+        max-width: none !important;
+        width: 100% !important;
+    }
+    
+    .selection-bar .selection-actions {
+        justify-content: center !important;
+        flex-shrink: 0 !important;
+    }
+}
+
+@media (max-width: 480px) {
+    #fileBrowserPath {
+        font-size: 11px;
+        padding: 4px 8px;
+    }
+    
+    .search-bar > div > div:last-child {
+        flex-direction: column;
+        gap: 5px;
+    }
+    
+    .search-bar > div > div:last-child label {
+        font-size: 12px;
+    }
+}
+
+.file-count-summary {
+    font-weight: 600;
+}
+
+.file-type-legend {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+}
+
+/* Sort indicators */
+.sort-header {
+    cursor: pointer;
+    user-select: none;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-bottom: 2px solid #e1e8ed;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.sort-header:hover {
+    background: #e9ecef;
+}
+
+.sort-header.active {
+    background: #667eea;
+    color: white;
+}
+
+.sort-indicator {
+    margin-left: 5px;
+    font-size: 10px;
+    opacity: 0.7;
+}
+
+/* Loading states */
+.file-loading-skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+    border-radius: 6px;
+    height: 20px;
+    margin: 8px 0;
+}
+
+@keyframes loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
 }
 
 .browser-loading {
@@ -2055,55 +2846,61 @@ textarea:focus {
     transform: none;
 }
 
-/* Round Action Buttons */
+/* Clean Round Action Buttons */
 .btn-round {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    border: 2px solid #667eea;
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    border: 1px solid #e1e8ed;
     background: white;
-    color: #667eea;
+    color: #6c757d;
     cursor: pointer;
     transition: all 0.2s ease;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 16px;
+    font-size: 14px;
     position: relative;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .btn-round:hover {
-    background: #667eea;
-    color: white;
-    transform: scale(1.1);
+    background: #f8f9fa;
+    color: #495057;
+    border-color: #667eea;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 .btn-round.active {
     background: #667eea;
     color: white;
+    border-color: #667eea;
 }
 
 .btn-round.danger {
-    border-color: #dc3545;
     color: #dc3545;
 }
 
 .btn-round.danger:hover {
-    background: #dc3545;
-    color: white;
+    background: #f8d7da;
+    color: #721c24;
+    border-color: #dc3545;
 }
 
 .btn-round:disabled {
-    border-color: #6c757d;
-    color: #6c757d;
+    background: #f8f9fa;
+    color: #adb5bd;
     cursor: not-allowed;
-    opacity: 0.5;
+    opacity: 0.6;
+    border-color: #e9ecef;
 }
 
 .btn-round:disabled:hover {
-    background: white;
-    color: #6c757d;
+    background: #f8f9fa;
+    color: #adb5bd;
     transform: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 /* Shutdown Button */

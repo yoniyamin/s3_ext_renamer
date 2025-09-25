@@ -250,7 +250,8 @@
                     
                     // Add files (for reference)
                     data.files.forEach(file => {
-                        html += '<div class="browser-item file">';
+                        const fileNameLower = file.name.toLowerCase();
+                        html += `<div class="browser-item file" data-name="${fileNameLower}">`;
                         html += file.name + ' <small>(' + formatFileSize(file.size) + ')</small>';
                         html += '</div>';
                     });

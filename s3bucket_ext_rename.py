@@ -270,6 +270,140 @@ def browse_folders():
         logging.error(f"An unexpected error occurred during folder browsing: {e}")
         return jsonify({"success": False, "message": f"Error: {str(e)}"})
 
+def matches_pattern(text, pattern):
+    """Check if text matches pattern with wildcard support (* and ?)"""
+    import fnmatch
+    
+    # If no wildcards, use simple substring search for backward compatibility
+    if '*' not in pattern and '?' not in pattern:
+        return pattern in text
+    
+    # Use fnmatch for wildcard patterns
+    return fnmatch.fnmatch(text, pattern)
+
+@app.route("/search-files", methods=["POST"])
+def search_files():
+    """Search for files and folders in S3 bucket using secure session"""
+    try:
+        data = request.get_json()
+        bucket = data.get("bucket")
+        prefix = data.get("prefix", "")
+        query = data.get("query", "").lower().strip()
+        recursive = data.get("recursive", False)
+
+        logging.info(f"Searching files in bucket '{bucket}' with prefix '{prefix}', query '{query}', recursive: {recursive}")
+
+        # Get credentials from secure session
+        credentials = get_session_credentials(data)
+        if not credentials:
+            logging.warning("Invalid or missing session for file search")
+            return jsonify({"success": False, "message": "Invalid or expired session"}), 401
+
+        if not bucket or not query:
+            logging.warning("Missing bucket or query parameter for file search")
+            return jsonify({"success": False, "message": "Missing bucket or query parameter"})
+
+        # Create S3 session and client using stored credentials
+        session_kwargs = {
+            "aws_access_key_id": credentials["access_key"],
+            "aws_secret_access_key": credentials["secret_key"],
+            "region_name": credentials["region"]
+        }
+        if credentials.get("session_token"):
+            session_kwargs["aws_session_token"] = credentials["session_token"]
+
+        session = boto3.Session(**session_kwargs)
+        s3 = session.client("s3")
+
+        results = []
+        
+        if recursive:
+            # Recursive search through all objects with the prefix
+            paginator = s3.get_paginator('list_objects_v2')
+            pages = paginator.paginate(Bucket=bucket, Prefix=prefix)
+            
+            for page in pages:
+                # Process folders (common prefixes)
+                for prefix_info in page.get('CommonPrefixes', []):
+                    folder_path = prefix_info['Prefix']
+                    folder_name = folder_path.rstrip('/').split('/')[-1]
+                    
+                    if matches_pattern(folder_name.lower(), query):
+                        results.append({
+                            'name': folder_name,
+                            'path': folder_path,
+                            'type': 'folder',
+                            'size': 0
+                        })
+                
+                # Process files
+                for obj in page.get('Contents', []):
+                    file_path = obj['Key']
+                    file_name = file_path.split('/')[-1]
+                    
+                    # Skip if it's a "folder" (ends with /)
+                    if file_path.endswith('/'):
+                        continue
+                    
+                    if matches_pattern(file_name.lower(), query) or matches_pattern(file_path.lower(), query):
+                        results.append({
+                            'name': file_name,
+                            'path': file_path,
+                            'type': 'file',
+                            'size': obj['Size']
+                        })
+        else:
+            # Search only in current folder
+            response = s3.list_objects_v2(
+                Bucket=bucket,
+                Prefix=prefix,
+                Delimiter='/'
+            )
+            
+            # Search in folders
+            for prefix_info in response.get('CommonPrefixes', []):
+                folder_path = prefix_info['Prefix']
+                display_name = folder_path[len(prefix):].rstrip('/')
+                
+                if display_name and matches_pattern(display_name.lower(), query):
+                    results.append({
+                        'name': display_name,
+                        'path': folder_path,
+                        'type': 'folder',
+                        'size': 0
+                    })
+            
+            # Search in files
+            for obj in response.get('Contents', []):
+                file_key = obj['Key']
+                if file_key != prefix and not file_key.endswith('/'):
+                    file_name = file_key[len(prefix):]
+                    if '/' not in file_name and matches_pattern(file_name.lower(), query):
+                        results.append({
+                            'name': file_name,
+                            'path': file_key,
+                            'type': 'file',
+                            'size': obj['Size']
+                        })
+
+        # Sort results: folders first, then files, both alphabetically
+        results.sort(key=lambda x: (x['type'] != 'folder', x['name'].lower()))
+
+        logging.info(f"File search completed. Found {len(results)} matches.")
+        return jsonify({
+            "success": True,
+            "results": results,
+            "query": query,
+            "recursive": recursive
+        })
+
+    except ClientError as e:
+        logging.error(f"AWS ClientError during file search: {e}")
+        return jsonify({"success": False, "message": f"AWS Error: {str(e)}"})
+    except Exception as e:
+        logging.error(f"An unexpected error occurred during file search: {e}")
+        return jsonify({"success": False, "message": f"Error: {str(e)}"})
+
 @app.route("/test-connection", methods=["POST"])
 def test_connection():
     """Test S3 connection with provided credentials"""
@@ -1417,7 +1551,7 @@ def auth_login():
                 secret_key = deobfuscate_string(data.get("secret_key", ""))
                 session_token = deobfuscate_string(data.get("session_token", "")) if data.get("session_token") else None
                 region = data.get("region", "us-east-1")
-                logging.info("🔐 Received encrypted authentication request")
+                logging.info("SECURE: Received encrypted authentication request")
             except Exception as e:
                 logging.error(f"Failed to decrypt credentials: {e}")
                 return jsonify({"success": False, "message": "Invalid encrypted credentials"}), 400
