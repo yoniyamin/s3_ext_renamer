@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Build script for S3 Extension Renamer
+Build script for The Bucket Wizard
 Creates a standalone executable using PyInstaller
 """
 
@@ -68,7 +68,7 @@ def build_executable():
         sys.executable, "-m", "PyInstaller", # Use python module to avoid PATH issues
         "--onefile",                    # Create a single executable file
         "--windowed",                   # Hide the console window
-        "--name", "S3ExtensionRenamer", # Name of the executable
+        "--name", "TheBucketWizard", # Name of the executable
         "--distpath", "dist",           # Output directory
         "--workpath", "build",          # Temporary build directory
         "--clean",                      # Clean build directory before building
@@ -83,7 +83,7 @@ def build_executable():
         cmd.extend(["--icon", "s3.ico"])
     
     # Add the main script
-    cmd.append("s3bucket_ext_rename.py")
+    cmd.append("s3bucket_wizard.py")
     
     print("🔨 Building executable with command:")
     print(" ".join(cmd))
@@ -92,7 +92,7 @@ def build_executable():
     try:
         subprocess.check_call(cmd)
         print("\n✅ Build completed successfully!")
-        print("📁 Executable location: dist/S3ExtensionRenamer.exe")
+        print("📁 Executable location: dist/TheBucketWizard.exe")
         print("\n📋 To distribute, simply copy the .exe file.")
         
     except subprocess.CalledProcessError as e:
@@ -102,11 +102,11 @@ def build_executable():
     return True
 
 if __name__ == "__main__":
-    print("📦 S3 Extension Renamer - Build Script")
+    print("📦 The Bucket Wizard - Build Script")
     print("=" * 50)
     
-    if not os.path.exists("s3bucket_ext_rename.py"):
-        print("❌ s3bucket_ext_rename.py not found in current directory")
+    if not os.path.exists("s3bucket_wizard.py"):
+        print("❌ s3bucket_wizard.py not found in current directory")
         sys.exit(1)
     
     # Install dependencies first
@@ -118,7 +118,7 @@ if __name__ == "__main__":
     if success:
         print("\n🎉 Build process completed!")
         print("\n💡 Usage instructions:")
-        print("   1. Run the dist/S3ExtensionRenamer.exe file.")
+        print("   1. Run the dist/TheBucketWizard.exe file.")
         print("   2. A desktop window will open with the application interface.")
         print("   3. The application will automatically find an available port.")
         print("   4. Close the window to stop the application.")
