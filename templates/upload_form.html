@@ -168,11 +168,8 @@
             <div class="config-info">
                 <h4>📋 Upload Configuration</h4>
                 <div class="controls">
-                    <div class="control-group">
-                        <label for="keyPrefix">Key Prefix (folder path in bucket):</label>
-                        <input type="text" id="keyPrefixInput" value="{{ key_prefix }}" 
-                               placeholder="e.g., uploads/2024/" />
-                        <div class="hint">Files will be uploaded to this path. Must be allowed by the presigned policy.</div>
+                    <div class="control-group" style="display: none;">
+                        <input type="text" id="keyPrefixInput" value="{{ key_prefix }}" />
                     </div>
                 </div>
             </div>
@@ -198,11 +195,11 @@
             <div id="exportSection" style="display: none; margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #28a745;">
                 <h4 style="margin: 0 0 10px 0; color: #155724;">📊 Export Upload Results</h4>
                 <p style="margin: 0 0 15px 0; font-size: 14px; color: #6c757d;">
-                    Download a JSON file with details of all uploaded files for verification purposes.
+                    Download a manifest file with details of all uploaded files. <strong>Recommended:</strong> Share this manifest with the recipient so they can verify all files were received correctly.
                 </p>
                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                     <button type="button" class="upload-btn" id="exportJsonBtn">
-                        📁 Download JSON
+                        📁 Download Manifest
                     </button>
                     <button type="button" class="upload-btn secondary" id="copyJsonBtn">
                         📋 Copy to Clipboard
