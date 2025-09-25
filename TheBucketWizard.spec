@@ -9,7 +9,7 @@ datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
 a = Analysis(
-    ['s3bucket_ext_rename.py'],
+    ['s3bucket_wizard.py'],
     pathex=[],
     binaries=binaries,
     datas=datas,
@@ -29,7 +29,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='S3ExtensionRenamer',
+    name='TheBucketWizard',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

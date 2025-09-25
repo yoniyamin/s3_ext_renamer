@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>S3 Wizard - Advanced Operations</title>
+    <title>The Bucket Wizard - Advanced Operations</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <!-- Select2 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
@@ -38,6 +38,68 @@
         .context-menu-item.disabled:hover {
             background: white;
         }
+        
+        /* Saved credentials state styling */
+        .credentials-saved-state {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+            text-align: center;
+        }
+        
+        .credentials-saved-message {
+            color: #155724;
+            font-weight: bold;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .credentials-saved-message .checkmark {
+            color: #28a745;
+            font-size: 20px;
+        }
+        
+        .credentials-grayed-out {
+            opacity: 0.5;
+            pointer-events: none;
+            background-color: #f8f9fa;
+        }
+        
+        .credentials-grayed-out input,
+        .credentials-grayed-out select {
+            background-color: #e9ecef !important;
+            cursor: not-allowed;
+        }
+        
+        .replace-credentials-btn {
+            background: #17a2b8;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 10px 5px;
+        }
+        
+        .replace-credentials-btn:hover {
+            background: #138496;
+        }
+        
+        .step.credentials-saved .step-number {
+            background: #28a745;
+            color: white;
+        }
+        
+        .step.credentials-saved .step-number::after {
+            content: "✓";
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
@@ -45,7 +107,7 @@
         <div class="header">
             <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                 <div>
-                    <h1>S3 Wizard</h1>
+                    <h1>The Bucket Wizard</h1>
                     <p>Generate presigned URLs and manage S3 operations</p>
                 </div>
                 <button type="button" class="btn-shutdown" id="mainExitBtn" style="margin-top: -20px;">
@@ -110,59 +172,74 @@
                 <div class="wizard-step" id="step-2">
                     <h3>Step 2: AWS Credentials</h3>
                     
-                    <!-- Access Key and Secret Key side by side -->
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="wizard-access-key">AWS Access Key:</label>
-                            <input type="text" id="wizard-access-key" name="access_key" required 
-                                   placeholder="Enter your AWS Access Key">
+                    <!-- Saved credentials state display -->
+                    <div id="credentials-saved-display" class="credentials-saved-state" style="display: none;">
+                        <div class="credentials-saved-message">
+                            <span class="checkmark">✓</span>
+                            <span>Credentials saved and validated for this session</span>
                         </div>
-                        
-                        <div class="form-group">
-                            <label for="wizard-secret-key">AWS Secret Key:</label>
-                            <input type="password" id="wizard-secret-key" name="secret_key" required 
-                                   placeholder="Enter your AWS Secret Key">
-                        </div>
-                    </div>
-                    
-                    <!-- Save credentials checkbox with test button -->
-                    <div class="form-group credential-storage" style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <input type="checkbox" id="wizard-save-credentials" name="save_credentials">
-                            <label for="wizard-save-credentials">Save credentials for this session (encrypted)</label>
-                        </div>
-                        <button type="button" class="btn" id="wizard-test-connection-btn" 
-                                style="background: #17a2b8; padding: 6px 12px; font-size: 13px;">
-                            Test Connection
+                        <p style="margin: 10px 0; color: #6c757d;">Your AWS credentials are securely stored and ready to use.</p>
+                        <button type="button" class="replace-credentials-btn" onclick="showReplaceCredentialsForm()">
+                            🔄 Replace Credentials
                         </button>
                     </div>
-                    <div style="margin-top: -10px; margin-bottom: 15px;">
-                        <small class="form-hint">Credentials will be cleared when you close the app</small>
-                        <div id="wizard-connection-status" class="connection-status"></div>
-                    </div>
                     
-                    <!-- Session Token and Region side by side -->
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="wizard-session-token">Session Token (Optional):</label>
-                            <input type="password" id="wizard-session-token" name="session_token"
-                                   placeholder="Enter session token for temporary credentials">
+                    <!-- Normal credentials form -->
+                    <div id="credentials-form" class="">
+                        <!-- Access Key and Secret Key side by side -->
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="wizard-access-key">AWS Access Key:</label>
+                                <input type="text" id="wizard-access-key" name="access_key" required 
+                                       placeholder="Enter your AWS Access Key">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="wizard-secret-key">AWS Secret Key:</label>
+                                <input type="password" id="wizard-secret-key" name="secret_key" required 
+                                       placeholder="Enter your AWS Secret Key">
+                            </div>
                         </div>
                         
-                        <div class="form-group">
-                            <label for="wizard-region">AWS Region:</label>
-                            <select id="wizard-region" name="region">
-                                <option value="us-east-1">US East (N. Virginia) - us-east-1</option>
-                                <option value="us-east-2">US East (Ohio) - us-east-2</option>
-                                <option value="us-west-1">US West (N. California) - us-west-1</option>
-                                <option value="us-west-2">US West (Oregon) - us-west-2</option>
-                                <option value="eu-west-1">EU (Ireland) - eu-west-1</option>
-                                <option value="eu-west-2">EU (London) - eu-west-2</option>
-                                <option value="eu-central-1">EU (Frankfurt) - eu-central-1</option>
-                                <option value="ap-southeast-1">Asia Pacific (Singapore) - ap-southeast-1</option>
-                                <option value="ap-southeast-2">Asia Pacific (Sydney) - ap-southeast-2</option>
-                                <option value="ap-northeast-1">Asia Pacific (Tokyo) - ap-northeast-1</option>
-                            </select>
+                        <!-- Save credentials checkbox with test button -->
+                        <div class="form-group credential-storage" style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="wizard-save-credentials" name="save_credentials">
+                                <label for="wizard-save-credentials">Save credentials for this session (encrypted)</label>
+                            </div>
+                            <button type="button" class="btn" id="wizard-test-connection-btn" 
+                                    style="background: #17a2b8; padding: 6px 12px; font-size: 13px;">
+                                Test Connection
+                            </button>
+                        </div>
+                        <div style="margin-top: -10px; margin-bottom: 15px;">
+                            <small class="form-hint">Credentials will be cleared when you close the app</small>
+                            <div id="wizard-connection-status" class="connection-status"></div>
+                        </div>
+                        
+                        <!-- Session Token and Region side by side -->
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="wizard-session-token">Session Token (Optional):</label>
+                                <input type="password" id="wizard-session-token" name="session_token"
+                                       placeholder="Enter session token for temporary credentials">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="wizard-region">AWS Region:</label>
+                                <select id="wizard-region" name="region">
+                                    <option value="us-east-1">US East (N. Virginia) - us-east-1</option>
+                                    <option value="us-east-2">US East (Ohio) - us-east-2</option>
+                                    <option value="us-west-1">US West (N. California) - us-west-1</option>
+                                    <option value="us-west-2">US West (Oregon) - us-west-2</option>
+                                    <option value="eu-west-1">EU (Ireland) - eu-west-1</option>
+                                    <option value="eu-west-2">EU (London) - eu-west-2</option>
+                                    <option value="eu-central-1">EU (Frankfurt) - eu-central-1</option>
+                                    <option value="ap-southeast-1">Asia Pacific (Singapore) - ap-southeast-1</option>
+                                    <option value="ap-southeast-2">Asia Pacific (Sydney) - ap-southeast-2</option>
+                                    <option value="ap-northeast-1">Asia Pacific (Tokyo) - ap-northeast-1</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                     
@@ -1146,6 +1223,9 @@
                         // Save credentials if checkbox is checked
                         if (document.getElementById('wizard-save-credentials').checked) {
                             saveCredentialsToSession();
+                        } else {
+                            // If not saving, make sure we show normal form state
+                            showNormalCredentialsForm();
                         }
                     } else {
                         statusDiv.innerHTML = '<div class="error-message" style="margin: 10px 0;">' + data.message + '</div>';
@@ -1175,9 +1255,77 @@
                 
                 sessionStorage.setItem('aws_credentials', JSON.stringify(credentials));
                 console.log('Credentials saved for this session');
+                
+                // Show saved credentials state after successful save
+                if (window.sessionId) {
+                    showSavedCredentialsState();
+                }
             } catch (error) {
                 console.error('Error saving credentials:', error);
             }
+        }
+        
+        // Show saved credentials state
+        function showSavedCredentialsState() {
+            const savedDisplay = document.getElementById('credentials-saved-display');
+            const credentialsForm = document.getElementById('credentials-form');
+            
+            if (savedDisplay && credentialsForm) {
+                savedDisplay.style.display = 'block';
+                credentialsForm.style.display = 'none';
+                
+                // Update step indicator to show checkmark
+                const step2Element = document.querySelector('[data-step="2"]');
+                if (step2Element) {
+                    step2Element.classList.add('credentials-saved');
+                }
+                
+                console.log('Showed saved credentials state');
+            }
+        }
+        
+        // Show normal credentials form
+        function showNormalCredentialsForm() {
+            const savedDisplay = document.getElementById('credentials-saved-display');
+            const credentialsForm = document.getElementById('credentials-form');
+            
+            if (savedDisplay && credentialsForm) {
+                savedDisplay.style.display = 'none';
+                credentialsForm.style.display = 'block';
+                
+                // Remove checkmark from step indicator
+                const step2Element = document.querySelector('[data-step="2"]');
+                if (step2Element) {
+                    step2Element.classList.remove('credentials-saved');
+                }
+                
+                console.log('Showed normal credentials form');
+            }
+        }
+        
+        // Replace credentials functionality
+        function showReplaceCredentialsForm() {
+            // Clear saved credentials
+            sessionStorage.removeItem('aws_credentials');
+            window.sessionId = null;
+            
+            // Clear form fields
+            document.getElementById('wizard-access-key').value = '';
+            document.getElementById('wizard-secret-key').value = '';
+            document.getElementById('wizard-session-token').value = '';
+            document.getElementById('wizard-region').value = 'us-east-1';
+            document.getElementById('wizard-save-credentials').checked = false;
+            
+            // Clear connection status
+            const statusDiv = document.getElementById('wizard-connection-status');
+            if (statusDiv) {
+                statusDiv.innerHTML = '';
+            }
+            
+            // Show normal form
+            showNormalCredentialsForm();
+            
+            console.log('Credentials cleared, showing replace form');
         }
 
         function loadCredentialsFromSession() {
@@ -1188,20 +1336,31 @@
                     
                     // Check if not too old (1 hour max)
                     if (Date.now() - credentials.timestamp < 3600000) {
-                        document.getElementById('wizard-access-key').value = atob(credentials.access_key);
-                        document.getElementById('wizard-secret-key').value = atob(credentials.secret_key);
-                        document.getElementById('wizard-session-token').value = atob(credentials.session_token);
-                        document.getElementById('wizard-region').value = credentials.region;
-                        document.getElementById('wizard-save-credentials').checked = true;
+                        // Check if we also have a valid session ID
+                        if (window.sessionId) {
+                            // Show saved credentials state
+                            showSavedCredentialsState();
+                        } else {
+                            // Load credentials into form but don't show saved state
+                            document.getElementById('wizard-access-key').value = atob(credentials.access_key);
+                            document.getElementById('wizard-secret-key').value = atob(credentials.secret_key);
+                            document.getElementById('wizard-session-token').value = atob(credentials.session_token);
+                            document.getElementById('wizard-region').value = credentials.region;
+                            document.getElementById('wizard-save-credentials').checked = true;
+                        }
                         console.log('Credentials loaded from session');
                     } else {
                         // Remove expired credentials
                         sessionStorage.removeItem('aws_credentials');
+                        showNormalCredentialsForm();
                     }
+                } else {
+                    showNormalCredentialsForm();
                 }
             } catch (error) {
                 console.error('Error loading credentials:', error);
                 sessionStorage.removeItem('aws_credentials');
+                showNormalCredentialsForm();
             }
         }
 
@@ -1316,16 +1475,37 @@
                 if (stepNum < currentStep) {
                     step.classList.add('completed');
                     step.classList.remove('active');
+                    
+                    // Special handling for step 2 (credentials) - maintain saved state
+                    if (stepNum === 2 && window.sessionId && sessionStorage.getItem('aws_credentials')) {
+                        step.classList.add('credentials-saved');
+                    }
                 } else if (stepNum === currentStep) {
                     step.classList.add('active');
                     step.classList.remove('completed');
+                    
+                    // Special handling for step 2 (credentials) - maintain saved state if applicable
+                    if (stepNum === 2 && window.sessionId && sessionStorage.getItem('aws_credentials')) {
+                        step.classList.add('credentials-saved');
+                    }
                 } else {
                     step.classList.remove('active', 'completed');
+                    
+                    // Don't remove credentials-saved class if we have valid credentials
+                    if (!(stepNum === 2 && window.sessionId && sessionStorage.getItem('aws_credentials'))) {
+                        step.classList.remove('credentials-saved');
+                    }
                 }
             });
         }
 
         async function validateCredentials() {
+            // If we already have a valid session ID and saved credentials, skip validation
+            if (window.sessionId && sessionStorage.getItem('aws_credentials')) {
+                console.log('Using existing valid session');
+                return true;
+            }
+            
             const accessKey = document.getElementById('wizard-access-key').value;
             const secretKey = document.getElementById('wizard-secret-key').value;
             const sessionToken = document.getElementById('wizard-session-token').value;
@@ -1390,7 +1570,9 @@
                     console.log('✅ Secure session created:', data.session_id?.substring(0,8) + '...', data.user_info);
                     
                     // Save credentials for this session (useful for UI)
-                    saveCredentialsToSession();
+                    if (document.getElementById('wizard-save-credentials').checked) {
+                        saveCredentialsToSession();
+                    }
                     
                     return true;
                 } else {
@@ -1509,11 +1691,14 @@
             // Update credential storage hint based on environment
             updateCredentialStorageHint();
             
-            // Load saved credentials
-            loadCredentialsFromSession();
-            
             // Initialize test connection functionality
             initializeTestConnection();
+            
+            // Load saved credentials and set initial state
+            // Small delay to ensure DOM is fully ready
+            setTimeout(() => {
+                loadCredentialsFromSession();
+            }, 100);
         });
         
         function updateCredentialStorageHint() {

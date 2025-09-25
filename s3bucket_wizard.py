@@ -2113,7 +2113,7 @@ def start_flask_app(port):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="The Bucket Wizard")
     parser.add_argument("--port", type=int, default=5000, help="Port to run the web server on.")
-    parser.add_argument("--web", action="store_true", help="Run as web app instead of desktop app (pywebview)")
+    parser.add_argument("--desktop", action="store_true", help="Run as desktop app with pywebview (default is web mode)")
     args = parser.parse_args()
     
     # Ensure the lock file is removed on exit
@@ -2173,8 +2173,21 @@ if __name__ == "__main__":
     # Give Flask a moment to start
     time.sleep(1)
     
-    if args.web:
-        # Run as web application with system tray
+    if args.desktop:
+        # Run as desktop application with pywebview
+        logging.info("Creating desktop window...")
+        webview.create_window(
+            'The Bucket Wizard',
+            f'http://127.0.0.1:{port}',
+            width=1200,
+            height=800,
+            min_size=(800, 600),
+            resizable=True
+        )
+        
+        webview.start(debug=False)
+    else:
+        # Run as web application with system tray (default)
         logging.info(f"Starting web application on http://127.0.0.1:{port}")
         print(f"\nThe Bucket Wizard is running at: http://127.0.0.1:{port}")
         print("Note: In web mode, credentials are stored in browser session storage")
@@ -2233,19 +2246,6 @@ if __name__ == "__main__":
                 logging.info("Web server stopped by user")
                 remove_lock_file()
                 print("\nServer stopped. Goodbye!")
-    else:
-        # Run as desktop application with pywebview
-        logging.info("Creating desktop window...")
-        webview.create_window(
-            'The Bucket Wizard',
-            f'http://127.0.0.1:{port}',
-            width=1200,
-            height=800,
-            min_size=(800, 600),
-            resizable=True
-        )
-        
-        webview.start(debug=False)
     
     # Final cleanup and exit
     if shutdown_requested:
