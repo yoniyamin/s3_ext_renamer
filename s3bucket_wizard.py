@@ -13,7 +13,7 @@ import atexit
 import socket
 import argparse
 import webview
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse, parse_qs
 import re
 import zipfile
@@ -126,8 +126,8 @@ class SecureSession:
         session_id = secrets.token_urlsafe(32)
         session_data = {
             'credentials': credentials,
-            'created_at': datetime.now(),
-            'last_accessed': datetime.now()
+            'created_at': datetime.now(timezone.utc),
+            'last_accessed': datetime.now(timezone.utc)
         }
         self.sessions[session_id] = session_data
         logging.info(f"Created secure session: {session_id[:8]}...")
@@ -141,12 +141,12 @@ class SecureSession:
         session_data = self.sessions[session_id]
         
         # Check if session has expired
-        if (datetime.now() - session_data['last_accessed']).seconds > self.session_timeout:
+        if (datetime.now(timezone.utc) - session_data['last_accessed']).seconds > self.session_timeout:
             self.invalidate_session(session_id)
             return None
         
         # Update last accessed time
-        session_data['last_accessed'] = datetime.now()
+        session_data['last_accessed'] = datetime.now(timezone.utc)
         return session_data['credentials']
 
     def invalidate_session(self, session_id):
@@ -157,7 +157,7 @@ class SecureSession:
 
     def cleanup_expired_sessions(self):
         """Remove expired sessions"""
-        current_time = datetime.now()
+        current_time = datetime.now(timezone.utc)
         expired_sessions = []
         
         for session_id, session_data in self.sessions.items():
@@ -725,7 +725,7 @@ def generate_presigned_url():
             
             # Optionally generate timestamp-based subfolder to avoid filename conflicts
             if use_timestamp_prefix:
-                timestamp_folder = datetime.now().strftime('%Y%m%d-%H%M%S')
+                timestamp_folder = datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')
                 timestamp_key_prefix = html_key_prefix + timestamp_folder + "/"
             else:
                 timestamp_key_prefix = html_key_prefix
@@ -775,8 +775,8 @@ def generate_presigned_url():
                     "url_type": "download",
                     "download_url": download_url,
                     "curl_download": curl_download,
-                    "issued_at": datetime.now().isoformat(),
-                    "expires_at": (datetime.now() + timedelta(seconds=expiration)).isoformat(),
+                    "issued_at": datetime.now(timezone.utc).isoformat(),
+                    "expires_at": (datetime.now(timezone.utc) + timedelta(seconds=expiration)).isoformat(),
                     "expiration_seconds": expiration
                 })
             
@@ -805,7 +805,7 @@ def generate_presigned_url():
                 )
 
                 # Calculate timestamps
-                issued_at = datetime.now()
+                issued_at = datetime.now(timezone.utc)
                 expires_at = issued_at + timedelta(seconds=expiration)
 
                 # Generate curl commands
@@ -843,7 +843,7 @@ def generate_presigned_url():
                     if upload_html and html_content:
                         try:
                             # Determine HTML file path in S3 using base prefix (not timestamp)
-                            html_filename = f"upload-form-{datetime.now().strftime('%Y%m%d-%H%M%S')}.html"
+                            html_filename = f"upload-form-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.html"
                             # Use the base html_key_prefix (without timestamp) for the HTML file location
                             base_prefix = html_key_prefix or ""  # Handle empty prefix (root folder)
                             if base_prefix and base_prefix.endswith('/'):
@@ -949,7 +949,7 @@ def generate_upload_html(presigned_post, key_prefix, expires_at, expiration_minu
             'key_with_placeholder': key_prefix + "${filename}",
             'key_pattern': key_prefix + "[filename]",
             'key_prefix': key_prefix,
-            'generated_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'generated_time': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC'),
             'expiration_minutes': expiration_minutes or 1,
             'expires_at_iso': expires_at.isoformat() if expires_at else None,
             'filename_placeholder': '${filename}'  # Clean placeholder for JavaScript
@@ -1496,7 +1496,7 @@ def s3_download_zip():
         zip_buffer.seek(0)
         
         # Generate filename
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
         zip_filename = f"s3_files_{bucket}_{timestamp}.zip"
         
         logging.info(f"ZIP file created successfully with {len(keys)} objects")

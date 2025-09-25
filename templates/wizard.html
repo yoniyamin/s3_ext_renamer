@@ -3145,6 +3145,9 @@
             // Clear results
             document.getElementById('wizard-results').innerHTML = '';
             document.getElementById('results-title').textContent = 'Step 4: Results';
+            
+            // Reinitialize URL type state to ensure upload options are visible
+            selectUrlType('upload');
         }
 
         // File Browser Functions
