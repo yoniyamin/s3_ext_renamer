@@ -15,7 +15,7 @@ import atexit
 import socket
 import argparse
 import webview
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse, parse_qs
 import re
 
@@ -394,7 +394,7 @@ def generate_presigned_url():
             if html_key_prefix and not html_key_prefix.endswith('/'):
                 html_key_prefix = html_key_prefix + '/'
             # Generate timestamp-based subfolder to avoid filename conflicts
-            timestamp_folder = datetime.now().strftime('%Y%m%d-%H%M%S')
+            timestamp_folder = datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')
             timestamp_key_prefix = html_key_prefix + timestamp_folder + "/"
             # Add starts-with condition for key to allow any filename after the timestamp prefix
             conditions.append(["starts-with", "$key", timestamp_key_prefix])
@@ -437,8 +437,8 @@ def generate_presigned_url():
                     "url_type": "download",
                     "download_url": download_url,
                     "curl_download": curl_download,
-                    "issued_at": datetime.now().isoformat(),
-                    "expires_at": (datetime.now() + timedelta(seconds=expiration)).isoformat(),
+                    "issued_at": datetime.now(timezone.utc).isoformat(),
+                    "expires_at": (datetime.now(timezone.utc) + timedelta(seconds=expiration)).isoformat(),
                     "expiration_seconds": expiration
                 })
             
@@ -467,7 +467,7 @@ def generate_presigned_url():
                 )
 
                 # Calculate timestamps
-                issued_at = datetime.now()
+                issued_at = datetime.now(timezone.utc)
                 expires_at = issued_at + timedelta(seconds=expiration)
 
                 # Generate curl commands
@@ -504,7 +504,7 @@ def generate_presigned_url():
                     if upload_html and html_content:
                         try:
                             # Determine HTML file path in S3 using base prefix (not timestamp)
-                            html_filename = f"upload-form-{datetime.now().strftime('%Y%m%d-%H%M%S')}.html"
+                            html_filename = f"upload-form-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.html"
                             # Use the base html_key_prefix (without timestamp) for the HTML file location
                             base_prefix = html_key_prefix or ""  # Handle empty prefix (root folder)
                             if base_prefix and base_prefix.endswith('/'):
@@ -1062,7 +1062,7 @@ Prefixes: An object key cannot begin with a forward slash.`;
             'key_with_placeholder': key_prefix + "${filename}",
             'key_pattern': key_prefix + "[filename]",
             'key_prefix': key_prefix,
-            'generated_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'generated_time': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC'),
             'expiration_minutes': expiration_minutes or 1,
             'filename_placeholder': '${filename}'  # Clean placeholder for JavaScript
         }
