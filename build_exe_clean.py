@@ -60,7 +60,7 @@ def main():
         --onefile ^
         --windowed ^
         --name TheBucketWizard ^
-        --distpath dist_clean ^
+        --distpath dist_fixed ^
         --workpath build_clean ^
         --clean ^
         --add-data "templates;templates" ^

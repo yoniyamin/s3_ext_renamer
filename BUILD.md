@@ -60,7 +60,7 @@ Create a separate, clean environment with only production dependencies.
 .venv_clean\Scripts\Activate.ps1
 
 # Build executable
-python -m PyInstaller --onefile --windowed --name TheBucketWizard --distpath dist_clean --icon static/wizard48p.ico s3bucket_wizard.py
+python -m PyInstaller --onefile --windowed --name TheBucketWizard --distpath dist_clean --clean --add-data "templates;templates" --add-data "static;static" --hidden-import webview --collect-all webview --icon static/wizard48p.ico s3bucket_wizard.py
 ```
 
 ### 3. Run Your Clean Build
@@ -288,6 +288,47 @@ python -m PyInstaller s3bucket_wizard.py --onefile --windowed
 # Error: UnicodeEncodeError: 'charmap' codec can't encode character
 # Solution: This was fixed by replacing Unicode emojis with ASCII alternatives
 # If you see this error, check for Unicode characters in print statements
+```
+
+#### 6. "Error 500 or missing templates/icons when running executable"
+```bash
+# Error: Templates not found, system tray shows blue square, 500 errors
+# Cause: Missing --add-data flags when building manually
+# Solution: Always use the build script or include these flags:
+#   --add-data "templates;templates"
+#   --add-data "static;static"
+#   --hidden-import webview
+#   --collect-all webview
+#   --icon static/wizard48p.ico
+
+# ❌ WRONG (missing --add-data flags):
+python -m PyInstaller --onefile --windowed --name TheBucketWizard --icon static/wizard48p.ico s3bucket_wizard.py
+
+# ✅ CORRECT (all flags included):
+python -m PyInstaller --onefile --windowed --name TheBucketWizard --distpath dist_clean --clean --add-data "templates;templates" --add-data "static;static" --hidden-import webview --collect-all webview --icon static/wizard48p.ico s3bucket_wizard.py
+```
+
+#### 7. "System tray shows purple square instead of wizard icon"
+```bash
+# Error: Tray icon appears as purple/blue square instead of wizard icon
+# Cause: Icon loading code doesn't handle PyInstaller's sys._MEIPASS bundled resources
+# Solution: Fixed in code to detect PyInstaller environment and use correct paths
+#   - Code now checks for sys._MEIPASS (PyInstaller resource path)
+#   - Falls back to development paths when running from source
+#   - Improved logging shows which icon path was successfully loaded
+# Note: This was fixed in the main code, no user action required
+```
+
+#### 8. "Executable file icon shows old s3.ico instead of wizard icon"
+```bash
+# Error: .exe file icon displays old s3.ico instead of wizard48p.ico
+# Cause: Old .spec files or cached PyInstaller configuration referencing old paths
+# Solution: Clean build with fresh directories and remove old .spec files
+#   1. Delete old .spec files: TheBucketWizard.spec, s3bucket_wizard.spec
+#   2. Clean build directories: Remove-Item build, dist_clean -Recurse -Force
+#   3. Build to new directory: --distpath dist_fixed
+#   4. Verify icon path in command: --icon static/wizard48p.ico
+# Final result: Both executable icon and tray icon now use wizard48p.ico
 ```
 
 ### Verification Commands

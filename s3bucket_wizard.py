@@ -190,12 +190,25 @@ def create_tray_icon(port):
     """Create system tray icon for web mode"""
     try:
         logging.info("Creating system tray icon...")
-        # Try to load the wizard icon files
+        # Get the correct base path for bundled resources
+        def get_resource_path(relative_path):
+            """Get absolute path to resource, works for dev and for PyInstaller"""
+            try:
+                # PyInstaller creates a temp folder and stores path in _MEIPASS
+                base_path = sys._MEIPASS
+                logging.info(f"Running as PyInstaller executable, base path: {base_path}")
+            except AttributeError:
+                # Running in development mode
+                base_path = os.path.abspath(".")
+                logging.info(f"Running in development mode, base path: {base_path}")
+            return os.path.join(base_path, relative_path)
+        
+        # Try to load the wizard icon files with correct paths
         icon_paths = [
-            "static/wizard48p.ico",
-            "static/wizard128p.ico", 
-            "wizard48p.ico",
-            "wizard128p.ico"
+            get_resource_path("static/wizard48p.ico"),
+            get_resource_path("static/wizard128p.ico"),
+            "wizard48p.ico",  # Fallback for development
+            "wizard128p.ico"  # Fallback for development
         ]
         
         image = None
@@ -206,6 +219,7 @@ def create_tray_icon(port):
                     # Convert ICO to PIL Image for pystray
                     import PIL.IcoImagePlugin
                     image = Image.open(icon_path)
+                    logging.info(f"Successfully loaded wizard icon from: {icon_path}")
                     break
             except Exception as e:
                 logging.warning(f"Error loading {icon_path}: {e}")
