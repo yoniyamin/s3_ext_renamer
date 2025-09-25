@@ -9,13 +9,13 @@ import sys
 import subprocess
 
 def check_icon():
-    """Check if the s3.ico file exists"""
-    if os.path.exists("s3.ico"):
-        print("✅ Icon found: s3.ico")
+    """Check if the wizard48p.ico file exists"""
+    if os.path.exists("wizard48p.ico"):
+        print("✅ Icon found: wizard48p.ico")
         return True
     else:
-        print("⚠️  Icon not found: s3.ico")
-        print("ℹ️  Please ensure s3.ico is in the current directory")
+        print("⚠️  Icon not found: wizard48p.ico")
+        print("ℹ️  Please ensure wizard48p.ico is in the current directory")
         return False
 
 def check_directories():
@@ -80,7 +80,7 @@ def build_executable():
     
     # Add icon if available
     if has_icon:
-        cmd.extend(["--icon", "s3.ico"])
+        cmd.extend(["--icon", "static/wizard48p.ico"])
     
     # Add the main script
     cmd.append("s3bucket_wizard.py")

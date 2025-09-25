@@ -1,0 +1,133 @@
+/* Help button styling */
+.btn-help {
+    background: #17a2b8;
+    color: white;
+    border: none;
+    padding: 10px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+}
+
+.btn-help:hover {
+    background: #138496;
+}
+
+.btn-help svg {
+    transition: transform 0.2s ease;
+}
+
+.btn-help:hover svg {
+    transform: scale(1.1);
+}
+
+/* Help modal styling */
+.help-section {
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.help-section:last-child {
+    border-bottom: none;
+}
+
+.help-section h4 {
+    color: #495057;
+    border-left: 4px solid #17a2b8;
+    padding-left: 15px;
+    margin-bottom: 15px;
+}
+
+.help-section h5 {
+    color: #6c757d;
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+
+.help-section ul {
+    margin-bottom: 15px;
+}
+
+.help-section li {
+    margin-bottom: 8px;
+    line-height: 1.5;
+}
+
+.help-section p {
+    line-height: 1.6;
+    margin-bottom: 12px;
+}
+
+.help-section code {
+    background: #f8f9fa;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.9em;
+}
+
+/* Help tabs styling */
+.help-tabs {
+    display: flex;
+    border-bottom: 2px solid #e9ecef;
+    margin-bottom: 20px;
+    overflow-x: auto;
+    flex-wrap: wrap;
+}
+
+.help-tab {
+    padding: 12px 20px;
+    cursor: pointer;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-bottom: none;
+    margin-right: 2px;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    font-size: 14px;
+    font-weight: 500;
+    color: #6c757d;
+}
+
+.help-tab:first-child {
+    border-radius: 8px 0 0 0;
+}
+
+.help-tab:last-child {
+    border-radius: 0 8px 0 0;
+    margin-right: 0;
+}
+
+.help-tab.active {
+    background: white;
+    color: #17a2b8;
+    border-bottom: 2px solid #17a2b8;
+    margin-bottom: -2px;
+}
+
+.help-tab:hover:not(.active) {
+    background: #e9ecef;
+    color: #495057;
+}
+
+.help-tab-content {
+    display: none;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.help-tab-content.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}

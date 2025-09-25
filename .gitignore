@@ -12,5 +12,6 @@ dist_clean/
 *.pyd
 *.pyz
 *.pkg
+upload-form*.html
 
-
+app.log

@@ -60,7 +60,7 @@ Create a separate, clean environment with only production dependencies.
 .venv_clean\Scripts\Activate.ps1
 
 # Build executable
-python -m PyInstaller --onefile --windowed --name TheBucketWizard --distpath dist_clean --icon s3.ico s3bucket_wizard.py
+python -m PyInstaller --onefile --windowed --name TheBucketWizard --distpath dist_clean --icon static/wizard48p.ico s3bucket_wizard.py
 ```
 
 ### 3. Run Your Clean Build
@@ -128,7 +128,7 @@ python -m PyInstaller \
     --add-data "static;static" \
     --hidden-import webview \
     --collect-all webview \
-    --icon s3.ico \
+    --icon static/wizard48p.ico \
     s3bucket_wizard.py
 ```
 
@@ -175,14 +175,17 @@ python s3bucket_wizard.py
 
 ### Application Modes
 
-The application now defaults to web mode:
+The application now defaults to web mode with **automatic browser opening**:
 
 ```bash
-# Web mode (default) - runs with system tray
+# Web mode (default) - runs with system tray + auto-opens browser
 python s3bucket_wizard.py
 
 # Web mode with custom port
 python s3bucket_wizard.py --port 5001
+
+# Web mode without auto-opening browser
+python s3bucket_wizard.py --no-browser
 
 # Desktop mode (pywebview)
 python s3bucket_wizard.py --desktop
@@ -190,6 +193,15 @@ python s3bucket_wizard.py --desktop
 # Help
 python s3bucket_wizard.py --help
 ```
+
+### 🌐 Auto-Browser Feature
+
+**New in this version**: The application automatically opens your default browser when started in web mode!
+
+- ✅ **Automatic**: Opens browser to the correct URL (http://127.0.0.1:port)
+- ✅ **Smart**: Opens a new tab if browser is already running
+- ✅ **Optional**: Use `--no-browser` flag to disable if needed
+- ✅ **User-friendly**: Clear console messages about browser opening status
 
 ### Directory Structure
 
@@ -271,6 +283,13 @@ pip list  # Should show ~41 packages
 python -m PyInstaller s3bucket_wizard.py --onefile --windowed
 ```
 
+#### 5. "Unicode encoding errors when running executable"
+```bash
+# Error: UnicodeEncodeError: 'charmap' codec can't encode character
+# Solution: This was fixed by replacing Unicode emojis with ASCII alternatives
+# If you see this error, check for Unicode characters in print statements
+```
+
 ### Verification Commands
 
 ```powershell
@@ -299,10 +318,13 @@ dist_clean\TheBucketWizard.exe
 python -m PyInstaller s3bucket_wizard.py --onefile --windowed
 
 # Full build with all options
-python -m PyInstaller --onefile --windowed --name TheBucketWizard --distpath dist_clean --icon s3.ico s3bucket_wizard.py
+python -m PyInstaller --onefile --windowed --name TheBucketWizard --distpath dist_clean --icon static/wizard48p.ico s3bucket_wizard.py
 
-# Run clean executable
+# Run clean executable (auto-opens browser!)
 dist_clean\TheBucketWizard.exe
+
+# Run without auto-opening browser
+dist_clean\TheBucketWizard.exe --no-browser
 ```
 
 ### File Locations
@@ -323,6 +345,8 @@ You'll know you have a successful clean build when:
 - ✅ Executable is in `dist_clean/` folder
 - ✅ Application starts and functions correctly
 - ✅ File size is optimized (~35MB or less)
+- ✅ **Browser opens automatically** when running the executable
+- ✅ System tray icon appears for additional control
 
 ---
 

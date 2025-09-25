@@ -190,21 +190,31 @@ def create_tray_icon(port):
     """Create system tray icon for web mode"""
     try:
         logging.info("Creating system tray icon...")
-        # Try to load the existing s3.ico file, fallback to creating a simple icon
-        try:
-            if os.path.exists("s3.ico"):
-                logging.info("Loading s3.ico file for tray icon")
-                # Convert ICO to PIL Image for pystray
-                import PIL.IcoImagePlugin
-                image = Image.open("s3.ico")
-            else:
-                logging.info("s3.ico not found, creating simple blue icon")
-                # Create a simple icon if s3.ico doesn't exist
-                image = Image.new('RGB', (64, 64), color='blue')
-        except Exception as e:
-            logging.warning(f"Error loading icon file: {e}, using fallback")
-            # Fallback to a simple colored square
-            image = Image.new('RGB', (64, 64), color='blue')
+        # Try to load the wizard icon files
+        icon_paths = [
+            "static/wizard48p.ico",
+            "static/wizard128p.ico", 
+            "wizard48p.ico",
+            "wizard128p.ico"
+        ]
+        
+        image = None
+        for icon_path in icon_paths:
+            try:
+                if os.path.exists(icon_path):
+                    logging.info(f"Loading {icon_path} file for tray icon")
+                    # Convert ICO to PIL Image for pystray
+                    import PIL.IcoImagePlugin
+                    image = Image.open(icon_path)
+                    break
+            except Exception as e:
+                logging.warning(f"Error loading {icon_path}: {e}")
+                continue
+        
+        if image is None:
+            logging.warning("No wizard icon found, creating simple wizard-themed icon")
+            # Create a simple wizard-themed icon if no icons are found
+            image = Image.new('RGB', (64, 64), color='#667eea')  # Wizard purple-blue color
 
         def open_browser():
             """Open the application in the default browser"""
@@ -2114,6 +2124,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="The Bucket Wizard")
     parser.add_argument("--port", type=int, default=5000, help="Port to run the web server on.")
     parser.add_argument("--desktop", action="store_true", help="Run as desktop app with pywebview (default is web mode)")
+    parser.add_argument("--no-browser", action="store_true", help="Don't automatically open browser in web mode")
     args = parser.parse_args()
     
     # Ensure the lock file is removed on exit
@@ -2193,6 +2204,20 @@ if __name__ == "__main__":
         print("Note: In web mode, credentials are stored in browser session storage")
         print("Look for the system tray icon to access the application or shutdown")
         print("Press Ctrl+C to stop the server\n")
+        
+        # Automatically open browser (unless disabled)
+        if not args.no_browser:
+            app_url = f'http://127.0.0.1:{port}'
+            try:
+                print("[WEB] Opening browser automatically...")
+                logging.info(f"Attempting to open browser at {app_url}")
+                webbrowser.open(app_url)
+                print("[SUCCESS] Browser opened successfully!")
+            except Exception as e:
+                logging.warning(f"Could not automatically open browser: {e}")
+                print(f"[WARNING] Could not open browser automatically. Please visit: {app_url}")
+        else:
+            print(f"[INFO] Browser auto-open disabled. Visit manually: http://127.0.0.1:{port}")
         
         # Create and start system tray icon
         tray_icon = create_tray_icon(port)

@@ -35,7 +35,7 @@ def main():
         return False
     
     # Check required files
-    required_files = ["s3bucket_wizard.py", "requirements.txt", "s3.ico"]
+    required_files = ["s3bucket_wizard.py", "requirements.txt", "wizard48p.ico"]
     required_dirs = ["templates", "static"]
     
     for file in required_files:
@@ -67,7 +67,7 @@ def main():
         --add-data "static;static" ^
         --hidden-import webview ^
         --collect-all webview ^
-        --icon s3.ico ^
+        --icon static/wizard48p.ico ^
         s3bucket_wizard.py
     """
     

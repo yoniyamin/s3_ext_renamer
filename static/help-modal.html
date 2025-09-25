@@ -1,0 +1,421 @@
+<div id="helpModal" class="modal" style="display: none;">
+    <div class="modal-content" style="width: 90%; max-width: 900px; height: 85vh;">
+        <div class="modal-header">
+            <h3>📚 The Bucket Wizard - Help & Documentation</h3>
+            <span class="close" id="closeHelp">&times;</span>
+        </div>
+        <div class="modal-body" style="padding: 20px;">
+            <!-- Help Tabs -->
+            <div class="help-tabs">
+                <div class="help-tab active" data-tab="getting-started">🚀 Getting Started</div>
+                <div class="help-tab" data-tab="presigned-urls">🔗 Presigned URLs</div>
+                <div class="help-tab" data-tab="file-browser">📁 File Browser</div>
+                <div class="help-tab" data-tab="extension-rename">🔄 Extension Rename</div>
+                <div class="help-tab" data-tab="url-parser">🔍 URL Parser</div>
+                <div class="help-tab" data-tab="troubleshooting">🔧 Troubleshooting</div>
+                <div class="help-tab" data-tab="security">🔒 Security</div>
+                <div class="help-tab" data-tab="tips">💡 Tips</div>
+            </div>
+            
+            <!-- Tab Content -->
+            <div style="overflow-y: auto; max-height: calc(85vh - 200px);">
+                <!-- Getting Started Tab -->
+                <div class="help-tab-content active" id="getting-started">
+                    <div class="help-section">
+                        <h4>🚀 Getting Started</h4>
+                        <p>The Bucket Wizard is a powerful tool for managing AWS S3 operations. Follow these steps to get started:</p>
+                        
+                        <h5>Step 1: Choose Your Operation</h5>
+                        <ul>
+                            <li><strong>🔗 Generate Presigned URL:</strong> Create temporary upload/download URLs for secure file sharing</li>
+                            <li><strong>🔍 Parse Presigned URL:</strong> Analyze existing presigned URLs to check expiration times</li>
+                            <li><strong>🔄 Rename Extension:</strong> Safely batch rename file extensions in your S3 bucket</li>
+                            <li><strong>📁 File Browser:</strong> Browse, manage, download, and organize files in your S3 buckets</li>
+                        </ul>
+                        
+                        <h5>Step 2: AWS Credentials</h5>
+                        <p>Enter your AWS credentials to authenticate with S3:</p>
+                        <ul>
+                            <li><strong>Access Key:</strong> Your AWS access key ID</li>
+                            <li><strong>Secret Key:</strong> Your AWS secret access key</li>
+                            <li><strong>Session Token:</strong> Optional - for temporary credentials</li>
+                            <li><strong>Region:</strong> The AWS region where your bucket is located</li>
+                        </ul>
+                        <p><em>💡 Tip: Use the "Test Connection" button to verify your credentials before proceeding.</em></p>
+                        
+                        <h5>Step 3: Configuration</h5>
+                        <p>Configure the specific operation based on your selection from Step 1.</p>
+                        
+                        <h5>Step 4: Results</h5>
+                        <p>View and interact with the results of your operation.</p>
+                    </div>
+                </div>
+                
+                <!-- Presigned URLs Tab -->
+                <div class="help-tab-content" id="presigned-urls">
+                    <div class="help-section">
+                        <h4>🔗 Presigned URLs</h4>
+                        <h5>What are Presigned URLs?</h5>
+                        <p>Presigned URLs are temporary URLs that grant access to S3 objects without requiring AWS credentials. They're perfect for:</p>
+                        <ul>
+                            <li>Allowing users to upload files directly to S3</li>
+                            <li>Providing temporary download access to private files</li>
+                            <li>Sharing files securely with expiration times</li>
+                        </ul>
+                        
+                        <h5>Upload vs Download URLs</h5>
+                        <ul>
+                            <li><strong>Upload URLs:</strong> Allow users to upload files to a specific S3 location</li>
+                            <li><strong>Download URLs:</strong> Provide temporary access to download existing files</li>
+                        </ul>
+                        
+                        <h5>URL Types Explained</h5>
+                        <ul>
+                            <li><strong>PUT URLs:</strong> Direct upload method - use with curl or HTTP clients (not browsers)</li>
+                            <li><strong>POST URLs:</strong> Form-based upload method - can be used with HTML forms</li>
+                        </ul>
+                        
+                        <h5>HTML Upload Forms</h5>
+                        <p>When generating upload URLs, you can create a shareable HTML form that others can use to upload files directly to your S3 bucket without any technical knowledge.</p>
+                        
+                        <h5>Expiration Times</h5>
+                        <p>Set appropriate expiration times based on your use case:</p>
+                        <ul>
+                            <li><strong>5-15 minutes:</strong> Quick file transfers</li>
+                            <li><strong>1-6 hours:</strong> Standard sharing scenarios</li>
+                            <li><strong>24+ hours:</strong> Long-term sharing or large file uploads</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- File Browser Tab -->
+                <div class="help-tab-content" id="file-browser">
+                    <div class="help-section">
+                        <h4>📁 File Browser</h4>
+                        <p>The File Browser provides a comprehensive interface for managing your S3 files:</p>
+                        
+                        <h5>Core Features</h5>
+                        <ul>
+                            <li><strong>Browse:</strong> Navigate through folders and files with an intuitive interface</li>
+                            <li><strong>Search:</strong> Find files by name (local or recursive search across all folders)</li>
+                            <li><strong>Download:</strong> Download individual files or multiple files as a ZIP archive</li>
+                            <li><strong>Delete:</strong> Remove files and folders (with confirmation prompts)</li>
+                            <li><strong>Create Folders:</strong> Organize your content with new folder creation</li>
+                            <li><strong>Upload Verification:</strong> Verify uploaded files against JSON logs</li>
+                        </ul>
+                        
+                        <h5>Navigation Options</h5>
+                        <ul>
+                            <li><strong>Single-click:</strong> Select files and folders</li>
+                            <li><strong>Double-click:</strong> Navigate into folders</li>
+                            <li><strong>Checkboxes:</strong> Multi-select for batch operations</li>
+                            <li><strong>Right-click:</strong> Context menu with quick actions</li>
+                            <li><strong>Path breadcrumbs:</strong> Click any path segment to navigate</li>
+                        </ul>
+                        
+                        <h5>Search Functionality</h5>
+                        <ul>
+                            <li><strong>Local Search:</strong> Search within current folder only</li>
+                            <li><strong>Recursive Search:</strong> Search across all subfolders</li>
+                            <li><strong>Wildcard Support:</strong> Use * and ? for pattern matching</li>
+                            <li><strong>Real-time Results:</strong> See results as you type</li>
+                        </ul>
+                        
+                        <h5>Upload Verification</h5>
+                        <p>Verify that files were uploaded correctly by:</p>
+                        <ul>
+                            <li>Loading a JSON file with upload results</li>
+                            <li>Checking file existence and sizes</li>
+                            <li>Finding files that may have been uploaded to different locations</li>
+                            <li>Getting detailed reports on upload success/failures</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Extension Rename Tab -->
+                <div class="help-tab-content" id="extension-rename">
+                    <div class="help-section">
+                        <h4>🔄 Extension Rename</h4>
+                        <p>Safely rename file extensions across your S3 bucket with preview and selective processing:</p>
+                        
+                        <h5>Key Features</h5>
+                        <ul>
+                            <li><strong>Preview Mode:</strong> See exactly which files will be affected before making changes</li>
+                            <li><strong>Recursive Search:</strong> Find files in all subfolders or limit to specific directories</li>
+                            <li><strong>Keep Originals:</strong> Option to create copies instead of renaming (safer approach)</li>
+                            <li><strong>Selective Processing:</strong> Choose which files to rename from the preview list</li>
+                            <li><strong>Batch Operations:</strong> Process multiple files at once efficiently</li>
+                        </ul>
+                        
+                        <h5>How It Works</h5>
+                        <ol>
+                            <li><strong>Configure:</strong> Set source bucket, folder path, and extension criteria</li>
+                            <li><strong>Preview:</strong> Review all files that match your criteria</li>
+                            <li><strong>Select:</strong> Choose which specific files to process</li>
+                            <li><strong>Execute:</strong> Perform the rename operation with confirmation</li>
+                        </ol>
+                        
+                        <h5>Best Practices</h5>
+                        <ul>
+                            <li><strong>Always Preview:</strong> Review the list before executing changes</li>
+                            <li><strong>Test First:</strong> Try with a small subset or use "Keep Originals" mode</li>
+                            <li><strong>Backup Important Data:</strong> Ensure you have backups before bulk operations</li>
+                            <li><strong>Use Specific Paths:</strong> Target specific folders rather than entire buckets</li>
+                        </ul>
+                        
+                        <h5>Example Use Cases</h5>
+                        <ul>
+                            <li>Convert .txt files to .bak for archiving</li>
+                            <li>Change .jpeg to .jpg for consistency</li>
+                            <li>Add version suffixes like .v1, .v2</li>
+                            <li>Standardize file extensions across projects</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- URL Parser Tab -->
+                <div class="help-tab-content" id="url-parser">
+                    <div class="help-section">
+                        <h4>🔍 URL Parser</h4>
+                        <p>Analyze existing presigned URLs to extract important information and check their status:</p>
+                        
+                        <h5>What It Does</h5>
+                        <ul>
+                            <li><strong>Expiration Analysis:</strong> Extract and display when the URL expires</li>
+                            <li><strong>Issue Time:</strong> Show when the URL was originally created</li>
+                            <li><strong>Status Check:</strong> Determine if the URL is still valid or has expired</li>
+                            <li><strong>Time Remaining:</strong> Live countdown showing remaining validity time</li>
+                            <li><strong>URL Components:</strong> Parse and understand the URL structure</li>
+                        </ul>
+                        
+                        <h5>Supported URL Types</h5>
+                        <ul>
+                            <li>AWS S3 presigned URLs (both PUT and POST)</li>
+                            <li>Upload and download URLs</li>
+                            <li>URLs from any AWS region</li>
+                            <li>URLs with custom expiration times</li>
+                        </ul>
+                        
+                        <h5>Use Cases</h5>
+                        <ul>
+                            <li><strong>URL Validation:</strong> Check if received URLs are still valid</li>
+                            <li><strong>Troubleshooting:</strong> Understand why a URL might not be working</li>
+                            <li><strong>Planning:</strong> See how much time remains for file operations</li>
+                            <li><strong>Analysis:</strong> Understand URL parameters and structure</li>
+                        </ul>
+                        
+                        <h5>How to Use</h5>
+                        <ol>
+                            <li>Paste any S3 presigned URL into the text area</li>
+                            <li>Click "Parse URL" to analyze the URL</li>
+                            <li>Review the extracted information and status</li>
+                            <li>Use the live countdown to track remaining time</li>
+                        </ol>
+                    </div>
+                </div>
+                
+                <!-- Troubleshooting Tab -->
+                <div class="help-tab-content" id="troubleshooting">
+                    <div class="help-section">
+                        <h4>🔧 Troubleshooting</h4>
+                        
+                        <h5>Authentication Issues</h5>
+                        <ul>
+                            <li><strong>Invalid Credentials:</strong>
+                                <ul>
+                                    <li>Double-check your AWS Access Key and Secret Key</li>
+                                    <li>Ensure there are no extra spaces or characters</li>
+                                    <li>Verify the credentials are for the correct AWS account</li>
+                                </ul>
+                            </li>
+                            <li><strong>Permission Denied:</strong>
+                                <ul>
+                                    <li>Your IAM user needs S3 permissions (ListBucket, GetObject, PutObject)</li>
+                                    <li>Check bucket policies that might restrict access</li>
+                                    <li>Verify you have permission for the specific bucket</li>
+                                </ul>
+                            </li>
+                        </ul>
+                        
+                        <h5>Presigned URL Errors</h5>
+                        <ul>
+                            <li><strong>SignatureDoesNotMatch:</strong>
+                                <ul>
+                                    <li>Don't open PUT URLs directly in a browser - use curl or HTTP tools</li>
+                                    <li>Check that your system clock is accurate (AWS is time-sensitive)</li>
+                                    <li>Verify the region matches your bucket's actual region</li>
+                                    <li>Ensure Content-Type matches what you're uploading</li>
+                                </ul>
+                            </li>
+                            <li><strong>PermanentRedirect:</strong>
+                                <ul>
+                                    <li>Your bucket is in a different region than selected</li>
+                                    <li>Use the "Test Connection" button to auto-detect the correct region</li>
+                                    <li>Update your region selection to match the bucket's location</li>
+                                </ul>
+                            </li>
+                            <li><strong>URL Expired:</strong>
+                                <ul>
+                                    <li>Generate a new URL with appropriate expiration time</li>
+                                    <li>Check your system clock accuracy</li>
+                                    <li>Use the URL Parser to verify expiration times</li>
+                                </ul>
+                            </li>
+                        </ul>
+                        
+                        <h5>File Browser Issues</h5>
+                        <ul>
+                            <li><strong>Empty Bucket Display:</strong>
+                                <ul>
+                                    <li>Verify you have ListBucket permissions</li>
+                                    <li>Check if you're looking in the correct path/prefix</li>
+                                    <li>Ensure the bucket actually contains files</li>
+                                </ul>
+                            </li>
+                            <li><strong>Search Not Working:</strong>
+                                <ul>
+                                    <li>Try clearing the search and reloading the folder</li>
+                                    <li>Check if recursive search is enabled for broader results</li>
+                                    <li>Verify your search pattern (use * for wildcards)</li>
+                                </ul>
+                            </li>
+                        </ul>
+                        
+                        <h5>Connection Issues</h5>
+                        <ul>
+                            <li><strong>Network Timeouts:</strong>
+                                <ul>
+                                    <li>Check your internet connection stability</li>
+                                    <li>Try refreshing the page and reconnecting</li>
+                                    <li>Verify your firewall isn't blocking AWS connections</li>
+                                </ul>
+                            </li>
+                            <li><strong>SSL/TLS Errors:</strong>
+                                <ul>
+                                    <li>Update your browser to the latest version</li>
+                                    <li>Check your system date and time settings</li>
+                                    <li>Try accessing from a different network</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Security Tab -->
+                <div class="help-tab-content" id="security">
+                    <div class="help-section">
+                        <h4>🔒 Security & Best Practices</h4>
+                        
+                        <h5>Credential Security</h5>
+                        <ul>
+                            <li><strong>Session Storage:</strong> Credentials are encrypted and stored only for your current session</li>
+                            <li><strong>No Persistent Storage:</strong> Credentials are cleared when you close the application</li>
+                            <li><strong>Encryption:</strong> Multi-layer obfuscation protects credentials during transmission</li>
+                            <li><strong>Local Processing:</strong> No credentials are sent to external servers</li>
+                        </ul>
+                        
+                        <h5>IAM Best Practices</h5>
+                        <ul>
+                            <li><strong>Minimal Permissions:</strong> Use IAM users with only the S3 permissions you need</li>
+                            <li><strong>Bucket-Specific Access:</strong> Restrict access to specific buckets when possible</li>
+                            <li><strong>Time-Limited Credentials:</strong> Use temporary credentials when available</li>
+                            <li><strong>Regular Rotation:</strong> Rotate access keys periodically</li>
+                        </ul>
+                        
+                        <h5>Presigned URL Security</h5>
+                        <ul>
+                            <li><strong>Appropriate Expiration:</strong> Set expiration times based on actual usage needs</li>
+                            <li><strong>Content-Type Restrictions:</strong> Specify content types to prevent unwanted file types</li>
+                            <li><strong>Secure Sharing:</strong> Share URLs through secure channels only</li>
+                            <li><strong>Monitor Usage:</strong> Keep track of when and how URLs are used</li>
+                        </ul>
+                        
+                        <h5>File Operations Security</h5>
+                        <ul>
+                            <li><strong>Preview Before Action:</strong> Always preview destructive operations</li>
+                            <li><strong>Backup Important Data:</strong> Maintain backups before bulk operations</li>
+                            <li><strong>Verify Uploads:</strong> Use upload verification to ensure file integrity</li>
+                            <li><strong>Access Logging:</strong> Enable CloudTrail and S3 access logging</li>
+                        </ul>
+                        
+                        <h5>Network Security</h5>
+                        <ul>
+                            <li><strong>HTTPS Only:</strong> All communications use encrypted HTTPS connections</li>
+                            <li><strong>Certificate Validation:</strong> SSL certificates are properly validated</li>
+                            <li><strong>No Third-Party Services:</strong> Direct communication with AWS only</li>
+                            <li><strong>Local Processing:</strong> File operations are processed locally when possible</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Tips Tab -->
+                <div class="help-tab-content" id="tips">
+                    <div class="help-section">
+                        <h4>💡 Tips & Tricks</h4>
+                        
+                        <h5>General Usage Tips</h5>
+                        <ul>
+                            <li><strong>Save Credentials:</strong> Check "Save credentials for this session" to avoid re-entering them</li>
+                            <li><strong>Test First:</strong> Always use the "Test Connection" button before proceeding</li>
+                            <li><strong>Browse Buttons:</strong> Use the "Browse" buttons to select buckets and folders easily</li>
+                            <li><strong>Double-Click Navigation:</strong> Double-click action cards to quickly proceed</li>
+                        </ul>
+                        
+                        <h5>File Browser Pro Tips</h5>
+                        <ul>
+                            <li><strong>Path Navigation:</strong> Click any part of the path breadcrumb to navigate directly</li>
+                            <li><strong>Multi-Select:</strong> Use Ctrl+Click or checkboxes for multiple file selection</li>
+                            <li><strong>Right-Click Menus:</strong> Right-click files for quick action menus</li>
+                            <li><strong>Recursive Search:</strong> Enable recursive search to find files across all subfolders</li>
+                            <li><strong>Wildcard Search:</strong> Use * and ? in search terms for pattern matching</li>
+                            <li><strong>ZIP Downloads:</strong> Select multiple files to download them as a ZIP archive</li>
+                        </ul>
+                        
+                        <h5>Presigned URL Tips</h5>
+                        <ul>
+                            <li><strong>Content-Type Matters:</strong> Specify content types for better compatibility</li>
+                            <li><strong>Use PUT for Simple Uploads:</strong> PUT URLs are more straightforward for programmatic use</li>
+                            <li><strong>HTML Forms for Users:</strong> Generate HTML forms for non-technical users</li>
+                            <li><strong>Copy Buttons:</strong> Use the copy buttons to quickly copy URLs to clipboard</li>
+                        </ul>
+                        
+                        <h5>Extension Rename Tips</h5>
+                        <ul>
+                            <li><strong>Always Preview:</strong> Use preview mode to see exactly what will change</li>
+                            <li><strong>Keep Originals:</strong> Enable "Keep originals" for safer operations</li>
+                            <li><strong>Start Small:</strong> Test with a limited folder first</li>
+                            <li><strong>Selective Processing:</strong> Uncheck files you don't want to rename</li>
+                        </ul>
+                        
+                        <h5>Performance Tips</h5>
+                        <ul>
+                            <li><strong>Region Selection:</strong> Choose the correct region for better performance</li>
+                            <li><strong>Batch Operations:</strong> Process multiple files together when possible</li>
+                            <li><strong>Connection Reuse:</strong> Stay in the same session to reuse connections</li>
+                            <li><strong>Local Search:</strong> Use local search for faster results in large folders</li>
+                        </ul>
+                        
+                        <h5>Workflow Tips</h5>
+                        <ul>
+                            <li><strong>URL Parser First:</strong> Check URL expiration before troubleshooting</li>
+                            <li><strong>Upload Verification:</strong> Verify important uploads using JSON logs</li>
+                            <li><strong>Organize Files:</strong> Create folders in the file browser for better organization</li>
+                            <li><strong>Monitor Expiration:</strong> Watch the live countdown timers on URLs</li>
+                        </ul>
+                        
+                        <h5>Keyboard Shortcuts</h5>
+                        <ul>
+                            <li><strong>Enter:</strong> Proceed to next step (when button is enabled)</li>
+                            <li><strong>Escape:</strong> Close modals and dialogs</li>
+                            <li><strong>Ctrl+A:</strong> Select all items in file browser</li>
+                            <li><strong>F5:</strong> Refresh current folder in file browser</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" id="closeHelpBtn" class="btn" style="background: #6c757d;">Close</button>
+        </div>
+    </div>
+</div>

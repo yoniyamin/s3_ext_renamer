@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The Bucket Wizard - Advanced Operations</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='help-modal.css') }}">
     <!-- Select2 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <!-- Context Menu CSS -->
@@ -100,6 +101,7 @@
             content: "✓";
             font-size: 12px;
         }
+        
     </style>
 </head>
 <body>
@@ -110,9 +112,16 @@
                     <h1>The Bucket Wizard</h1>
                     <p>Generate presigned URLs and manage S3 operations</p>
                 </div>
-                <button type="button" class="btn-shutdown" id="mainExitBtn" style="margin-top: -20px;">
-                    🔴 Shutdown
-                </button>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button type="button" class="btn-help" id="helpBtn" style="margin-top: -20px;" title="Help & Documentation">
+                        <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/>
+                        </svg>
+                    </button>
+                    <button type="button" class="btn-shutdown" id="mainExitBtn" style="margin-top: -20px;">
+                        🔴 Shutdown
+                    </button>
+                </div>
             </div>
         </div>
         
@@ -722,11 +731,19 @@
             <div class="context-menu-item" id="contextDelete">🗑️ Delete</div>
             <div class="context-menu-item" id="contextNewFolder">📁 New Folder</div>
         </div>
+        
+    </div>
+
+    <!-- Developer Credit -->
+    <div style="text-align: center; margin: 20px; padding: 15px; color: #6c757d; font-size: 14px; background: #f8f9fa; border-top: 1px solid #e1e8ed; border-radius: 20px;">
+        Developed by <a href="https://www.linkedin.com/in/yonatan-yamin-8608b251/" target="_blank" style="color: #667eea; text-decoration: none; font-weight: 600;">Yonatan Yamin</a>
     </div>
 
     <!-- jQuery and Select2 JS -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <!-- Help Modal JS -->
+    <script src="{{ url_for('static', filename='help-modal.js') }}"></script>
     <script>
         let currentStep = 1;
         let selectedAction = null;
@@ -3896,6 +3913,7 @@
             document.getElementById('refreshBrowser').addEventListener('click', function() {
                 loadFileBrowserContents(window.currentFileBrowserBucket, window.currentFileBrowserPrefix);
             });
+            
             
             
             // Exit application from main page
